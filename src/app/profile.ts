@@ -1,0 +1,50 @@
+export type Language = 'en' | 'es';
+
+export const profile = {
+  name: 'Walter Ambriz',
+  company: 'IBICARE',
+  email: 'walterardev@gmail.com',
+  linkedinUrl: 'https://www.linkedin.com/in/walterambriz',
+  cvUrl: 'cv/Walter-Ambriz-CV.pdf',
+};
+
+export const translations = {
+  en: {
+    navLabel: 'Contact and language',
+    languageLabel: 'Language',
+    heroLabel: 'Introduction',
+    role: 'BACKEND & AI ENGINEER',
+    headlineLine1: 'Building reliable systems',
+    headlineLine2: 'with clarity.',
+    summary: 'I design and build backend systems, AI applications, and developer tools with a focus on reliability, observability, and real-world impact.',
+    downloadCv: 'Download CV',
+    emailAction: 'Copy email',
+    emailCopied: 'Email copied',
+    emailCopyFailed: 'Could not copy email',
+    cvUnavailable: 'CV not available yet',
+    linkedinAction: 'LinkedIn profile',
+    experienceLabel: 'EXPERIENCE',
+    experienceRole: 'Backend & AI Engineer',
+    experienceSubtitle: 'AI-powered health technology',
+    experienceDate: '2025 — Present',
+  },
+  es: {
+    navLabel: 'Contacto e idioma',
+    languageLabel: 'Idioma',
+    heroLabel: 'Presentación',
+    role: 'INGENIERO BACKEND E IA',
+    headlineLine1: 'Construyo sistemas confiables',
+    headlineLine2: 'con claridad.',
+    summary: 'Diseño y construyo sistemas backend, aplicaciones de IA y herramientas para desarrolladores, con un enfoque en confiabilidad, observabilidad e impacto real.',
+    downloadCv: 'Descargar CV',
+    emailAction: 'Copiar email',
+    emailCopied: 'Email copiado',
+    emailCopyFailed: 'No se pudo copiar el email',
+    cvUnavailable: 'CV no disponible por ahora',
+    linkedinAction: 'Perfil de LinkedIn',
+    experienceLabel: 'EXPERIENCIA',
+    experienceRole: 'Ingeniero Backend e IA',
+    experienceSubtitle: 'Tecnología de salud impulsada por IA',
+    experienceDate: '2025 — Presente',
+  },
+} as const;
