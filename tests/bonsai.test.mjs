@@ -42,6 +42,7 @@ test('the Canvas component releases its loading and browser resources', () => {
   const angular = {
     Component: () => (component) => component,
     ViewChild: () => () => {},
+    output: () => ({ emit() {} }),
     ElementRef: class ElementRef {},
     NgZone: class NgZone {},
   };
@@ -75,6 +76,7 @@ test('ambient particles use only foliage and low vegetation, with a sparse groun
   const angular = {
     Component: () => (component) => component,
     ViewChild: () => () => {},
+    output: () => ({ emit() {} }),
     ElementRef: class ElementRef {},
     NgZone: class NgZone {},
   };
@@ -112,6 +114,7 @@ test('falling foliage varies its timing and can drift from separate canopies tog
   const angular = {
     Component: () => (component) => component,
     ViewChild: () => () => {},
+    output: () => ({ emit() {} }),
     ElementRef: class ElementRef {},
     NgZone: class NgZone {},
   };
