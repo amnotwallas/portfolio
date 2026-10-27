@@ -32,7 +32,7 @@ Place the finished CV at `public/cv/Walter-Ambriz-CV.pdf`. The CV control checks
 
 ## Bonsai artwork
 
-`public/bonsai.png` remains the source artwork and the fallback when Canvas or particle loading fails. The hero normally draws individual marks from `public/bonsai-particles.bin` over 6.2 seconds, then gently animates selected leaves and low vegetation with an occasional leaf drifting to the rocky base. A sparse ground scatter blends the base into the page. Above mobile widths, a soft halo behind each hero text block keeps it readable without covering the tree. Reduced-motion visitors see the completed, still tree immediately. See [the extraction guide](tools/bonsai-particles/README.md) for regeneration, format, visual comparison, and limitations.
+`public/bonsai.png` remains the source artwork and the fallback when Canvas or particle loading fails. The hero normally draws individual marks from `public/bonsai-particles.bin` over 6.2 seconds, then gently animates selected leaves and low vegetation with occasional one- or two-leaf falls to the rocky base. A sparse ground scatter blends the base into the page. Above mobile widths, a soft halo behind each hero text block keeps it readable without covering the tree. Reduced-motion visitors see the completed, still tree immediately. See [the extraction guide](tools/bonsai-particles/README.md) for regeneration, format, visual comparison, and limitations.
 
 ## Deploy to GitHub Pages
 

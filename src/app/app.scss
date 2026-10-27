@@ -156,6 +156,7 @@ h2 {
 }
 .cv-link:hover { background: var(--ink); border-color: var(--ink); }
 .icon-link {
+  position: relative;
   width: 44px;
   padding: 0;
   border: 1px solid rgba(47, 93, 86, .3);
@@ -163,9 +164,55 @@ h2 {
   background: transparent;
   color: var(--teal-dark);
 }
+.icon-link::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  background: var(--ink);
+  box-shadow: 0 5px 14px rgba(20, 22, 24, .18);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+  pointer-events: none;
+}
+.icon-link::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  border: 5px solid transparent;
+  border-top-color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+  pointer-events: none;
+}
+.icon-link:is(:hover, :focus-visible)::before,
+.icon-link:is(:hover, :focus-visible)::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
 .icon-link:hover { background: rgba(47, 93, 86, .08); border-color: var(--teal-dark); }
 .icon-link svg { width: 19px; height: 19px; }
 .copy-feedback { display: block; min-height: 18px; margin-top: 8px; color: var(--teal-dark); font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-link::before, .icon-link::after { transition: none; }
+}
 
 @media (max-width: 1099px) {
   .site-header { width: calc(100% - 10vw); }

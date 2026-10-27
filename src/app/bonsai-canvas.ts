@@ -18,6 +18,8 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   private data?: BonsaiData;
   private animatedDots: BonsaiParticle[] = [];
   private fallingSources: BonsaiParticle[] = [];
+  private fallingLeaves: { dot: BonsaiParticle; start: number; duration: number; drift: number }[] = [];
+  private nextFallAt = 6700 + Math.random() * 1000;
   private context?: CanvasRenderingContext2D;
   private layer?: HTMLCanvasElement;
   private layerContext?: CanvasRenderingContext2D;
@@ -163,18 +165,23 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
 
   private drawFallingLeaves(elapsed: number): void {
     if (!this.context || this.motion.matches || this.progress < 1 || !this.fallingSources.length) return;
-    const age = elapsed - 9000;
-    if (age < 0) return;
-    const phase = age % 20000;
-    if (phase >= 11500) return;
-    const cycle = Math.floor(age / 20000);
-    const dot = this.fallingSources[(cycle * 137) % this.fallingSources.length];
-    const t = phase / 11500;
-    const direction = cycle % 2 ? -1 : 1;
-    const x = dot.x + direction * (t * 55 + Math.sin(t * 7) * 9);
-    const y = dot.y + (1300 - dot.y) * (t * .62 + t * t * .38);
-    const opacity = dot.opacity * .8 * Math.min(1, t * 10, (1 - t) * 12);
-    this.drawDot(this.context, dot, x, y, opacity, Math.max(dot.radius, 2));
+    if (elapsed >= this.nextFallAt) {
+      const first = this.fallingSources[Math.floor(Math.random() * this.fallingSources.length)];
+      const sources = [first];
+      const distant = this.fallingSources.filter((dot) => Math.abs(dot.y - first.y) > 180 && (dot.x - first.x) ** 2 + (dot.y - first.y) ** 2 > 320 ** 2);
+      if (distant.length && Math.random() < .32) sources.push(distant[Math.floor(Math.random() * distant.length)]);
+      this.fallingLeaves = sources.map((dot) => ({ dot, start: elapsed, duration: 9000 + Math.random() * 3500, drift: (Math.random() - .5) * 100 }));
+      this.nextFallAt = elapsed + Math.max(...this.fallingLeaves.map((leaf) => leaf.duration)) + 6000 + Math.random() * 7000;
+    }
+    for (const leaf of this.fallingLeaves) {
+      const t = (elapsed - leaf.start) / leaf.duration;
+      if (t >= 1) continue;
+      const dot = leaf.dot;
+      const x = dot.x + leaf.drift * t + Math.sin(t * 7 + dot.x * .01) * t * 9;
+      const y = dot.y + (1300 - dot.y) * (t * .62 + t * t * .38);
+      const opacity = dot.opacity * .8 * Math.min(1, t * 10, (1 - t) * 12);
+      this.drawDot(this.context, dot, x, y, opacity, Math.max(dot.radius, 2));
+    }
   }
 
   private isAnimatedLeaf(dot: BonsaiParticle): boolean {

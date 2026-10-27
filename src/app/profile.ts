@@ -5,6 +5,7 @@ export const profile = {
   company: 'IBICARE',
   email: 'walterardev@gmail.com',
   linkedinUrl: 'https://www.linkedin.com/in/walterambriz',
+  githubUrl: 'https://github.com/amnotwallas',
   cvUrl: 'cv/Walter-Ambriz-CV.pdf',
 };
 
@@ -23,6 +24,7 @@ export const translations = {
     emailCopyFailed: 'Could not copy email',
     cvUnavailable: 'CV not available yet',
     linkedinAction: 'LinkedIn profile',
+    githubAction: 'GitHub profile',
     experienceLabel: 'EXPERIENCE',
     experienceRole: 'Backend & AI Engineer',
     experienceSubtitle: 'AI-powered health technology',
@@ -42,6 +44,7 @@ export const translations = {
     emailCopyFailed: 'No se pudo copiar el email',
     cvUnavailable: 'CV no disponible por ahora',
     linkedinAction: 'Perfil de LinkedIn',
+    githubAction: 'Perfil de GitHub',
     experienceLabel: 'EXPERIENCIA',
     experienceRole: 'Ingeniero Backend e IA',
     experienceSubtitle: 'Tecnología de salud impulsada por IA',

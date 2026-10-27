@@ -100,12 +100,15 @@ test('ambient particles use only foliage and low vegetation, with a sparse groun
   assert.ok(extension.every((dot) => dot.material === 4 && dot.y > 1290));
 });
 
-test('falling foliage stays sparse, drifts down, and stops for reduced motion', () => {
+test('falling foliage varies its timing and can drift from separate canopies together', () => {
   const source = readFileSync('src/app/bonsai-canvas.ts', 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
   }).outputText;
   const motion = { matches: false };
+  let randomValue = .2;
+  const randomMath = Object.create(Math);
+  randomMath.random = () => randomValue;
   const angular = {
     Component: () => (component) => component,
     ViewChild: () => () => {},
@@ -118,37 +121,46 @@ test('falling foliage stays sparse, drifts down, and stops for reduced motion', 
     module, exports: module.exports,
     require: () => angular,
     window: { matchMedia: () => motion },
+    Math: randomMath,
     AbortController,
   });
   const component = new module.exports.BonsaiCanvas();
-  const leaf = { x: 500, y: 400, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 };
-  component.fallingSources = [leaf];
+  const leaves = [
+    { x: 500, y: 400, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 },
+    { x: 900, y: 350, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 },
+    { x: 100, y: 100, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 },
+  ];
+  component.fallingSources = leaves;
   component.context = {};
   component.progress = 1;
   const drawn = [];
   component.drawDot = (_context, dot, x, y, opacity) => drawn.push({ dot, x, y, opacity });
 
-  const counts = [];
-  for (let elapsed = 0; elapsed < 60000; elapsed += 1000) {
-    drawn.length = 0;
-    component.drawFallingLeaves(elapsed);
-    counts.push(drawn.length);
-    if (elapsed === 11000) {
-      assert.equal(drawn[0]?.dot, leaf);
-      assert.ok(drawn[0].x !== leaf.x && drawn[0].y > leaf.y && drawn[0].opacity > 0);
-    }
-    if (elapsed === 20000) {
-      assert.ok(drawn[0]?.y > 1220 && drawn[0].y < 1320);
-      assert.ok(drawn[0].opacity > 0 && drawn[0].opacity < leaf.opacity);
-    }
-  }
-  assert.ok(counts.every((count) => count <= 1));
-  assert.equal(counts[11], 1);
-  assert.equal(counts[21], 0);
-  assert.equal(counts[24], 0);
-  assert.equal(counts[31], 1);
+  const firstFallAt = component.nextFallAt;
+  assert.ok(firstFallAt >= 6700 && firstFallAt <= 7700);
+  component.drawFallingLeaves(6200);
+  assert.equal(drawn.length, 0);
+  component.drawFallingLeaves(firstFallAt);
+  drawn.length = 0;
+  component.drawFallingLeaves(firstFallAt + 2000);
+  assert.equal(drawn.length, 2);
+  assert.ok(Math.hypot(drawn[0].dot.x - drawn[1].dot.x, drawn[0].dot.y - drawn[1].dot.y) > 320);
+  assert.ok(Math.abs(drawn[0].dot.y - drawn[1].dot.y) > 180);
+  assert.ok(drawn.every(({ dot, x, y, opacity }) => x !== dot.x && y > dot.y && opacity > 0));
+  const nextFallAt = component.nextFallAt;
+  drawn.length = 0;
+  component.drawFallingLeaves(firstFallAt + 9000);
+  assert.ok(drawn[0]?.y > 1200 && drawn[0].y < 1320);
+  drawn.length = 0;
+  component.drawFallingLeaves(firstFallAt + 10000);
+  assert.equal(drawn.length, 0);
+
+  randomValue = .9;
+  component.drawFallingLeaves(nextFallAt);
+  assert.equal(component.fallingLeaves.length, 1);
+  assert.notEqual(component.nextFallAt - nextFallAt, nextFallAt - firstFallAt);
   motion.matches = true;
   drawn.length = 0;
-  component.drawFallingLeaves(11000);
+  component.drawFallingLeaves(nextFallAt + 2000);
   assert.equal(drawn.length, 0);
 });
