@@ -134,6 +134,24 @@ h2 {
   font-size: 14px;
   line-height: 1.45;
 }
+.experience-primary { display: inline-flex; align-items: center; flex-wrap: wrap; }
+.company-link {
+  color: inherit;
+  text-decoration-color: rgb(45 91 78 / 42%);
+  text-underline-offset: 3px;
+}
+.company-link:hover { text-decoration-color: currentColor; }
+.company-app-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 3px;
+  border-radius: 8px;
+}
+.company-app-link img { display: block; width: 22px; height: 22px; border-radius: 6px; }
+.company-app-link:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .experience span + span { color: #788083; font-size: 13px; }
 .experience i { padding: 0 3px; color: var(--teal); font-style: normal; }
 

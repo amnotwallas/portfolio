@@ -3,6 +3,8 @@ export type Language = 'en' | 'es';
 export const profile = {
   name: 'Walter Ambriz',
   company: 'IBICARE',
+  companyUrl: 'https://ibicare.mx/',
+  companyAppUrl: 'https://play.google.com/store/apps/details?id=mx.ibicare.IbicareApp&hl=es_HN',
   email: 'walterardev@gmail.com',
   linkedinUrl: 'https://www.linkedin.com/in/walterambriz',
   githubUrl: 'https://github.com/amnotwallas',
@@ -27,8 +29,9 @@ export const translations = {
     githubAction: 'GitHub profile',
     experienceLabel: 'EXPERIENCE',
     experienceRole: 'Backend & AI Engineer',
-    experienceSubtitle: 'AI-powered health technology',
+    experienceSubtitle: 'Corporate health & wellbeing platform',
     experienceDate: '2025 — Present',
+    companyAppAction: 'Open IBICARE app on Google Play',
   },
   es: {
     navLabel: 'Contacto e idioma',
@@ -47,7 +50,8 @@ export const translations = {
     githubAction: 'Perfil de GitHub',
     experienceLabel: 'EXPERIENCIA',
     experienceRole: 'Ingeniero Backend e IA',
-    experienceSubtitle: 'Tecnología de salud impulsada por IA',
+    experienceSubtitle: 'Plataforma de salud y bienestar corporativo',
     experienceDate: '2025 — Presente',
+    companyAppAction: 'Abrir la app de IBICARE en Google Play',
   },
 } as const;

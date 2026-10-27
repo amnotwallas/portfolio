@@ -18,7 +18,13 @@
       <h2>{{ copy().headlineLine1 }} {{ copy().headlineLine2 }}</h2>
       <p class="summary">{{ copy().summary }}</p>
       <div class="experience" [attr.aria-label]="copy().experienceLabel">
-        <span>{{ copy().experienceRole }} <i>·</i> {{ profile.company }}</span>
+        <span class="experience-primary">
+          {{ copy().experienceRole }} <i aria-hidden="true">·</i>
+          <a class="company-link" [href]="profile.companyUrl" target="_blank" rel="noopener noreferrer">{{ profile.company }}</a>
+          <a class="company-app-link" [href]="profile.companyAppUrl" target="_blank" rel="noopener noreferrer" [attr.aria-label]="copy().companyAppAction">
+            <img src="assets/ibicare-app-icon.png" alt="" width="22" height="22" />
+          </a>
+        </span>
         <span>{{ copy().experienceSubtitle }} <i>·</i> {{ copy().experienceDate }}</span>
       </div>
 
