@@ -71,14 +71,12 @@
   text-align: left;
 }
 
-.hero::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: -26px -40px;
-  background: linear-gradient(90deg, rgba(247, 246, 243, .98) 0%, rgba(247, 246, 243, .94) 72%, rgba(247, 246, 243, .38) 90%, transparent);
-  filter: blur(18px);
-  pointer-events: none;
+@media (min-width: 700px) {
+  .hero > :is(.eyebrow, h1, h2, .summary, .experience) {
+    width: fit-content;
+    background: rgba(247, 246, 243, .82);
+    box-shadow: 0 0 14px 8px rgba(247, 246, 243, .74);
+  }
 }
 
 .eyebrow {
@@ -185,7 +183,7 @@ h2 {
   .site-header { height: 72px; width: calc(100% - 42px); }
   .monogram { font-size: 27px; }
   .language-switch { gap: 8px; }
-  .language-switch button { min-width: 31px; height: 40px; font-size: 12px; }
+  .language-switch button { min-width: 44px; height: 44px; font-size: 12px; }
   .content {
     min-height: calc(100svh - 72px);
     padding: clamp(340px, 43vh, 385px) 24px 24px;
@@ -200,15 +198,14 @@ h2 {
     max-width: 90vw;
     transform: translateX(-50%);
   }
-  .hero::before { content: none; }
   .hero { width: 100%; margin: 0; }
   .eyebrow { margin-bottom: 13px; font-size: 10px; }
   h1 { font-size: clamp(43px, 12vw, 52px); }
   h2 { margin-top: 11px; font-size: clamp(23px, 6.4vw, 28px); }
-  .summary { margin-top: 13px; font-size: 14px; line-height: 1.52; }
-  .experience { gap: 3px; margin-top: 17px; font-size: 12px; }
-  .experience span + span { font-size: 11px; }
+  .summary { margin-top: 13px; font-size: 16px; line-height: 1.52; }
+  .experience { gap: 3px; margin-top: 17px; font-size: 13px; }
+  .experience span + span { color: #596169; font-size: 13px; }
   .hero-actions { margin-top: 16px; }
-  .cv-link { font-size: 12px; }
+  .cv-link { font-size: 14px; }
   .copy-feedback { min-height: 14px; margin-top: 5px; font-size: 11px; }
 }
