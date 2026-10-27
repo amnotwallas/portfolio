@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import math
 import struct
 from dataclasses import dataclass
@@ -152,10 +153,13 @@ def extract(path: Path) -> Dataset:
 
 def export(data: Dataset, path: Path) -> None:
     packed_background = data.background[0] | data.background[1] << 8 | data.background[2] << 16
-    with path.open("wb") as output:
-        output.write(HEADER.pack(b"BSP1", data.width, data.height, len(data.particles), packed_background))
-        for particle in data.particles:
-            output.write(DOT.pack(*particle.__dict__.values()))
+    raw = bytearray(HEADER.pack(b"BSP1", data.width, data.height, len(data.particles), packed_background))
+    for particle in data.particles:
+        raw.extend(DOT.pack(*particle.__dict__.values()))
+    path.write_bytes(raw)
+    with path.with_suffix(".pack").open("wb") as output:
+        with gzip.GzipFile(filename="", fileobj=output, mode="wb", compresslevel=9, mtime=0) as compressed:
+            compressed.write(raw)
 
 
 def read_export(path: Path) -> Dataset:
