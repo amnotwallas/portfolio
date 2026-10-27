@@ -99,3 +99,56 @@ test('ambient particles use only foliage and low vegetation, with a sparse groun
   assert.ok(grass.every((dot) => dot.lowVegetation));
   assert.ok(extension.every((dot) => dot.material === 4 && dot.y > 1290));
 });
+
+test('falling foliage stays sparse, drifts down, and stops for reduced motion', () => {
+  const source = readFileSync('src/app/bonsai-canvas.ts', 'utf8');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
+  }).outputText;
+  const motion = { matches: false };
+  const angular = {
+    Component: () => (component) => component,
+    ViewChild: () => () => {},
+    ElementRef: class ElementRef {},
+    NgZone: class NgZone {},
+  };
+  angular.inject = () => ({ nativeElement: {} });
+  const module = { exports: {} };
+  runInNewContext(compiled, {
+    module, exports: module.exports,
+    require: () => angular,
+    window: { matchMedia: () => motion },
+    AbortController,
+  });
+  const component = new module.exports.BonsaiCanvas();
+  const leaf = { x: 500, y: 400, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 };
+  component.fallingSources = [leaf];
+  component.context = {};
+  component.progress = 1;
+  const drawn = [];
+  component.drawDot = (_context, dot, x, y, opacity) => drawn.push({ dot, x, y, opacity });
+
+  const counts = [];
+  for (let elapsed = 0; elapsed < 60000; elapsed += 1000) {
+    drawn.length = 0;
+    component.drawFallingLeaves(elapsed);
+    counts.push(drawn.length);
+    if (elapsed === 11000) {
+      assert.equal(drawn[0]?.dot, leaf);
+      assert.ok(drawn[0].x !== leaf.x && drawn[0].y > leaf.y && drawn[0].opacity > 0);
+    }
+    if (elapsed === 20000) {
+      assert.ok(drawn[0]?.y > 1220 && drawn[0].y < 1320);
+      assert.ok(drawn[0].opacity > 0 && drawn[0].opacity < leaf.opacity);
+    }
+  }
+  assert.ok(counts.every((count) => count <= 1));
+  assert.equal(counts[11], 1);
+  assert.equal(counts[21], 0);
+  assert.equal(counts[24], 0);
+  assert.equal(counts[31], 1);
+  motion.matches = true;
+  drawn.length = 0;
+  component.drawFallingLeaves(11000);
+  assert.equal(drawn.length, 0);
+});

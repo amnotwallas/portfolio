@@ -28,11 +28,11 @@ The production files are written to `dist/portfolio/browser/`.
 
 Edit `src/app/profile.ts` for the name, company, email, LinkedIn URL, CV path, and EN/ES copy. The language buttons switch between two local content objects. Keep both translations aligned when changing copy.
 
-Place the finished CV at `public/cv/Walter-Ambriz-CV.pdf`. Both CV controls check that a PDF exists before downloading. Until then, they show “CV not available yet” or “CV no disponible por ahora” without navigating to a missing file.
+Place the finished CV at `public/cv/Walter-Ambriz-CV.pdf`. The CV control checks that a PDF exists before downloading. Until then, it shows “CV not available yet” or “CV no disponible por ahora” without navigating to a missing file.
 
 ## Bonsai artwork
 
-`public/bonsai.png` remains the source artwork and the fallback when Canvas or particle loading fails. The hero normally draws individual marks from `public/bonsai-particles.bin` over 6.2 seconds, then gently animates selected leaves and low vegetation. A sparse ground scatter blends the rocky base into the page. Reduced-motion visitors see the completed tree immediately. See [the extraction guide](tools/bonsai-particles/README.md) for regeneration, format, visual comparison, and limitations.
+`public/bonsai.png` remains the source artwork and the fallback when Canvas or particle loading fails. The hero normally draws individual marks from `public/bonsai-particles.bin` over 6.2 seconds, then gently animates selected leaves and low vegetation with an occasional leaf drifting to the rocky base. A sparse ground scatter blends the base into the page. Above mobile widths, the artwork grows behind a soft text backing that keeps the hero readable. Reduced-motion visitors see the completed, still tree immediately. See [the extraction guide](tools/bonsai-particles/README.md) for regeneration, format, visual comparison, and limitations.
 
 ## Deploy to GitHub Pages
 

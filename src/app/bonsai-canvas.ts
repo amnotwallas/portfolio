@@ -17,6 +17,7 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   private resizeObserver?: ResizeObserver;
   private data?: BonsaiData;
   private animatedDots: BonsaiParticle[] = [];
+  private fallingSources: BonsaiParticle[] = [];
   private context?: CanvasRenderingContext2D;
   private layer?: HTMLCanvasElement;
   private layerContext?: CanvasRenderingContext2D;
@@ -55,6 +56,7 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
       if (this.destroyed) return;
       this.data = data;
       this.animatedDots = data.particles.filter((dot) => this.isAnimatedLeaf(dot) || this.isAnimatedGrass(dot));
+      this.fallingSources = this.animatedDots.filter((dot) => dot.material === 3 && dot.y < 850 && dot.x > 90 && dot.x < data.width - 90);
       this.layer = document.createElement('canvas');
       this.layerContext = this.layer.getContext('2d') ?? undefined;
       if (!this.layerContext) return this.showFallback();
@@ -148,14 +150,31 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
       if (dot.reveal > this.progress) break;
       const group = Math.floor(dot.x / 100) + Math.floor(dot.y / 100) * 11;
       const grass = this.isAnimatedGrass(dot);
-      const sway = this.motion.matches ? 0 : Math.sin(phase + group * .7) * (grass ? .65 : .8);
+      const sway = this.motion.matches ? 0 : Math.sin(phase * (.88 + group % 5 * .06) + group * .7) * (grass ? 1.05 : .9);
       const opacity = this.motion.matches ? dot.opacity : dot.opacity * (.95 + .05 * Math.sin(phase * .8 + group));
-      this.drawDot(this.context, dot, dot.x + sway, dot.y, opacity);
+      this.drawDot(this.context, dot, dot.x + sway * (grass ? .35 : 1), dot.y, opacity);
       if (grass) {
-        this.drawDot(this.context, dot, dot.x + sway * .6, dot.y - 3, opacity * .42, .8);
-        this.drawDot(this.context, dot, dot.x + sway, dot.y - 5, opacity * .32, .5);
+        this.drawDot(this.context, dot, dot.x + sway * .9, dot.y - 3, opacity * .42, .8);
+        this.drawDot(this.context, dot, dot.x + sway * 1.4, dot.y - 5, opacity * .32, .5);
       }
     }
+    this.drawFallingLeaves(elapsed);
+  }
+
+  private drawFallingLeaves(elapsed: number): void {
+    if (!this.context || this.motion.matches || this.progress < 1 || !this.fallingSources.length) return;
+    const age = elapsed - 9000;
+    if (age < 0) return;
+    const phase = age % 20000;
+    if (phase >= 11500) return;
+    const cycle = Math.floor(age / 20000);
+    const dot = this.fallingSources[(cycle * 137) % this.fallingSources.length];
+    const t = phase / 11500;
+    const direction = cycle % 2 ? -1 : 1;
+    const x = dot.x + direction * (t * 55 + Math.sin(t * 7) * 9);
+    const y = dot.y + (1300 - dot.y) * (t * .62 + t * t * .38);
+    const opacity = dot.opacity * .8 * Math.min(1, t * 10, (1 - t) * 12);
+    this.drawDot(this.context, dot, x, y, opacity, Math.max(dot.radius, 2));
   }
 
   private isAnimatedLeaf(dot: BonsaiParticle): boolean {

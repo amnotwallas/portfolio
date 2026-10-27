@@ -53,15 +53,14 @@
 .hero-artwork {
   position: absolute;
   z-index: 0;
-  top: calc(50% + 28px);
+  bottom: 0;
   right: clamp(24px, 5vw, 84px);
   width: auto;
-  height: min(82svh, 760px);
-  max-width: 46vw;
+  height: min(96svh, 930px);
+  max-width: 56vw;
   object-fit: contain;
   object-position: center;
   pointer-events: none;
-  transform: translateY(-48%);
 }
 
 .hero {
@@ -70,6 +69,16 @@
   width: min(46vw, 540px);
   margin: 2vh 0 0 clamp(24px, 6vw, 110px);
   text-align: left;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -26px -40px;
+  background: linear-gradient(90deg, rgba(247, 246, 243, .98) 0%, rgba(247, 246, 243, .94) 72%, rgba(247, 246, 243, .38) 90%, transparent);
+  filter: blur(18px);
+  pointer-events: none;
 }
 
 .eyebrow {
@@ -164,11 +173,8 @@ h2 {
   .site-header { width: calc(100% - 10vw); }
   .content { align-items: flex-end; padding-bottom: 11vh; }
   .hero-artwork {
-    top: calc(8% + 14px);
-    right: 1.5vw;
-    height: min(58svh, 500px);
-    max-width: 42vw;
-    transform: none;
+    right: -2vw;
+    height: min(82svh, 740px);
   }
   .hero { width: min(55vw, 500px); margin-left: 3vw; margin-bottom: 0; }
   h1 { font-size: clamp(50px, 7vw, 70px); }
@@ -187,12 +193,14 @@ h2 {
   }
   .hero-artwork {
     top: 18px;
+    bottom: auto;
     right: auto;
     left: 50%;
     height: clamp(250px, 38svh, 320px);
     max-width: 90vw;
     transform: translateX(-50%);
   }
+  .hero::before { content: none; }
   .hero { width: 100%; margin: 0; }
   .eyebrow { margin-bottom: 13px; font-size: 10px; }
   h1 { font-size: clamp(43px, 12vw, 52px); }
