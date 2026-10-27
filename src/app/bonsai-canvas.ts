@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild, inject, output } from '@angular/core';
 import { decodeBonsai, fitBonsai, growthProgress, type BonsaiData, type BonsaiParticle } from './bonsai-data';
 
 @Component({
@@ -10,6 +10,7 @@ import { decodeBonsai, fitBonsai, growthProgress, type BonsaiData, type BonsaiPa
 export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   @ViewChild('surface', { static: true }) private surface!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fallback', { static: true }) private fallback!: ElementRef<HTMLImageElement>;
+  readonly growthStarted = output<void>();
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly zone = inject(NgZone);
   private readonly abort = new AbortController();
@@ -28,6 +29,7 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   private elapsed = 0;
   private next = 0;
   private progress = 0;
+  private hasAnnouncedGrowth = false;
   private scale = 1;
   private offsetX = 0;
   private offsetY = 0;
@@ -77,6 +79,7 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
     this.surface.nativeElement.hidden = true;
     this.fallback.nativeElement.src = 'bonsai.png';
     this.fallback.nativeElement.hidden = false;
+    this.announceGrowthStarted();
   }
 
   private readonly onVisibility = (): void => {
@@ -161,6 +164,13 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
       }
     }
     this.drawFallingLeaves(elapsed);
+    if (this.next > 0) this.announceGrowthStarted();
+  }
+
+  private announceGrowthStarted(): void {
+    if (this.hasAnnouncedGrowth) return;
+    this.hasAnnouncedGrowth = true;
+    this.growthStarted.emit();
   }
 
   private drawFallingLeaves(elapsed: number): void {

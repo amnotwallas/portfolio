@@ -12,6 +12,7 @@ export class App {
   protected readonly profile = profile;
   protected readonly language = signal<Language>('en');
   protected readonly copy = computed(() => translations[this.language()]);
+  protected readonly heroStarted = signal(false);
   protected readonly feedback = signal('');
   private feedbackTimer?: ReturnType<typeof setTimeout>;
 
@@ -19,6 +20,10 @@ export class App {
     this.language.set(language);
     document.documentElement.lang = language;
     this.feedback.set('');
+  }
+
+  protected startHeroAnimation(): void {
+    this.heroStarted.set(true);
   }
 
   protected async copyEmail(): Promise<void> {

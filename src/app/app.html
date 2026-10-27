@@ -11,8 +11,8 @@
   </header>
 
   <main id="home" class="content">
-    <app-bonsai-canvas class="hero-artwork" aria-hidden="true" />
-    <section class="hero" [attr.aria-label]="copy().heroLabel">
+    <app-bonsai-canvas class="hero-artwork" aria-hidden="true" (growthStarted)="startHeroAnimation()" />
+    <section class="hero" [class.hero-started]="heroStarted()" [attr.aria-label]="copy().heroLabel">
       <p class="eyebrow">{{ copy().role }}</p>
       <h1>{{ profile.name }}<span>.</span></h1>
       <h2>{{ copy().headlineLine1 }} {{ copy().headlineLine2 }}</h2>

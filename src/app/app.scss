@@ -69,6 +69,15 @@
   width: min(46vw, 540px);
   margin: 2vh 0 0 clamp(24px, 6vw, 110px);
   text-align: left;
+  animation: hero-enter 700ms cubic-bezier(.22, 1, .36, 1) paused both;
+}
+.hero.hero-started {
+  animation-play-state: running;
+}
+
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (min-width: 700px) {
@@ -211,6 +220,7 @@ h2 {
 .copy-feedback { display: block; min-height: 18px; margin-top: 8px; color: var(--teal-dark); font-size: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero { animation: none; }
   .icon-link::before, .icon-link::after { transition: none; }
 }
 
