@@ -5,7 +5,7 @@ import { decodeBonsai, fitBonsai, growthProgress, type BonsaiData, type BonsaiPa
   selector: 'app-bonsai-canvas',
   standalone: true,
   template: '<canvas #surface aria-hidden="true"></canvas><img #fallback alt="" aria-hidden="true" hidden />',
-  styles: `:host { display: block; aspect-ratio: 1122 / 1402; } canvas, img { display: block; width: 100%; height: 100%; } canvas { cursor: pointer; pointer-events: auto; } canvas[hidden], img[hidden] { display: none; }`,
+  styles: `:host { display: block; aspect-ratio: 1122 / 1402; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; } canvas, img { display: block; width: 100%; height: 100%; } canvas { cursor: pointer; pointer-events: auto; } canvas[hidden], img[hidden] { display: none; }`,
 })
 export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   @ViewChild('surface', { static: true }) private surface!: ElementRef<HTMLCanvasElement>;
