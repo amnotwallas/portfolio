@@ -1,6 +1,43 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild, inject, output } from '@angular/core';
 import { decodeBonsai, fitBonsai, growthProgress, type BonsaiData, type BonsaiParticle } from './bonsai-data';
 
+type BirdDot = { x: number; y: number; radius: number };
+
+function birdEllipse(cx: number, cy: number, rx: number, ry: number, angle: number, seed: number): BirdDot[] {
+  const dots: BirdDot[] = [];
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  for (let row = -ry; row <= ry; row += 2.4) {
+    for (let col = -rx; col <= rx; col += 2.4) {
+      const noise = Math.sin((col + seed * 13) * 12.9898 + (row + seed * 7) * 78.233) * 43758.5453;
+      const fraction = noise - Math.floor(noise);
+      const px = col + (fraction - .5) * 1.1;
+      const py = row + (fraction - .5) * .8;
+      if ((px / rx) ** 2 + (py / ry) ** 2 > 1) continue;
+      dots.push({ x: cx + px * cosine - py * sine, y: cy + px * sine + py * cosine, radius: 1 + fraction * .55 });
+    }
+  }
+  return dots;
+}
+
+const birdTail = [
+  ...birdEllipse(-28, 3, 20, 3, -.18, 1),
+  ...birdEllipse(-29, 9, 18, 3, .12, 6),
+];
+const birdBody = birdEllipse(0, 0, 24, 13, -.12, 2);
+const birdHead = birdEllipse(18, -9, 10, 10, 0, 3);
+const birdFoldedWing = birdEllipse(-3, -3, 16, 7, -.25, 4);
+const birdFlightWing = [
+  ...birdEllipse(-6, -16, 9, 19, -.25, 7),
+  ...birdEllipse(-15, -31, 5, 14, -.2, 8),
+  ...birdEllipse(2, -28, 4, 11, .15, 9),
+];
+const birdBeak = birdEllipse(35, -8, 10, 2.8, -.08, 5);
+const birdFeet: BirdDot[] = [
+  { x: -5, y: 11, radius: 1.3 }, { x: -5, y: 15, radius: 1.3 }, { x: -5, y: 19, radius: 1.3 }, { x: -9, y: 20, radius: 1.2 },
+  { x: 7, y: 11, radius: 1.3 }, { x: 7, y: 15, radius: 1.3 }, { x: 7, y: 19, radius: 1.3 }, { x: 3, y: 20, radius: 1.2 },
+];
+
 @Component({
   selector: 'app-bonsai-canvas',
   standalone: true,
@@ -20,8 +57,9 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
   private animatedDots: BonsaiParticle[] = [];
   private fallingSources: BonsaiParticle[] = [];
   private branchSources: BonsaiParticle[] = [];
-  private fallingLeaves: { dot: BonsaiParticle; start: number; duration: number; drift: number }[] = [];
+  private fallingLeaves: { dot: BonsaiParticle; start: number; duration: number; drift: number; burst?: boolean }[] = [];
   private nextFallAt = 6700 + Math.random() * 1000;
+  private birdLandedAt?: number;
   private context?: CanvasRenderingContext2D;
   private layer?: HTMLCanvasElement;
   private layerContext?: CanvasRenderingContext2D;
@@ -157,20 +195,26 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
     this.context.drawImage(this.layer, 0, 0);
     this.context.setTransform(this.scale, 0, 0, this.scale, this.offsetX, this.offsetY);
     const phase = elapsed / 2200;
+    const landingAge = elapsed - (this.birdLandedAt ?? -Infinity);
+    const landingShake = landingAge < 1300 && !this.motion.matches
+      ? Math.sin(landingAge / 55) * Math.exp(-landingAge / 350) * 5
+      : 0;
     for (let i = 0; i < this.animatedDots.length; i++) {
       const dot = this.animatedDots[i];
       if (dot.reveal > this.progress) break;
       const group = Math.floor(dot.x / 100) + Math.floor(dot.y / 100) * 11;
       const grass = this.isAnimatedGrass(dot);
       const sway = this.motion.matches ? 0 : Math.sin(phase * (.88 + group % 5 * .06) + group * .7) * (grass ? 1.05 : .9);
+      const nearbyShake = dot.material === 3 ? landingShake * Math.max(0, 1 - Math.hypot(dot.x - 875, dot.y - 590) / 260) : 0;
       const opacity = this.motion.matches ? dot.opacity : dot.opacity * (.95 + .05 * Math.sin(phase * .8 + group));
-      this.drawDot(this.context, dot, dot.x + sway * (grass ? .35 : 1), dot.y, opacity);
+      this.drawDot(this.context, dot, dot.x + sway * (grass ? .35 : 1) + nearbyShake, dot.y + nearbyShake * .25, opacity);
       if (grass) {
         this.drawDot(this.context, dot, dot.x + sway * .9, dot.y - 3, opacity * .42, .8);
         this.drawDot(this.context, dot, dot.x + sway * 1.4, dot.y - 5, opacity * .32, .5);
       }
     }
     this.drawFallingLeaves(elapsed);
+    this.drawBird(elapsed);
     if (this.next > 0) this.announceGrowthStarted();
   }
 
@@ -217,13 +261,85 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
     }
     for (const leaf of this.fallingLeaves) {
       const t = (elapsed - leaf.start) / leaf.duration;
-      if (t >= 1) continue;
+      if (t < 0 || t >= 1) continue;
       const dot = leaf.dot;
       const x = dot.x + leaf.drift * t + Math.sin(t * 7 + dot.x * .01) * t * 9;
       const y = dot.y + (1300 - dot.y) * (t * .62 + t * t * .38);
-      const opacity = dot.opacity * .8 * Math.min(1, t * 10, (1 - t) * 12);
-      this.drawDot(this.context, dot, x, y, opacity, Math.max(dot.radius, 2));
+      const opacity = (leaf.burst ? .9 : dot.opacity * .8) * Math.min(1, t * 10, (1 - t) * 12);
+      this.drawDot(this.context, dot, x, y, opacity, leaf.burst ? Math.max(dot.radius, 4) * .6 : Math.max(dot.radius, 2));
     }
+  }
+
+  private scatterLandingLeaves(elapsed: number): void {
+    const nearby = this.fallingSources.filter((dot) => (dot.x - 875) ** 2 + (dot.y - 590) ** 2 < 230 ** 2);
+    for (let i = 0; i < Math.min(24, nearby.length); i++) {
+      const [dot] = nearby.splice(Math.floor(Math.random() * nearby.length), 1);
+      this.fallingLeaves.push({ dot, start: elapsed + Math.random() * 350, duration: 3600 + Math.random() * 1200, drift: (Math.random() - .5) * 150, burst: true });
+    }
+  }
+
+  private drawBird(elapsed: number): void {
+    if (!this.context || (!this.motion.matches && elapsed < 6800)) return;
+    const flight = this.motion.matches ? 1 : Math.min(1, (elapsed - 6800) / 4000);
+    const eased = flight * flight * (3 - 2 * flight);
+    const arc = Math.sin(Math.PI * flight);
+    const x = -100 + (875 + 100) * eased;
+    const birdScale = 1.05;
+    const perchY = 670 - 20 * birdScale;
+    const y = 540 + (perchY - 540) * eased - 190 * arc * arc + Math.sin(elapsed / 160) * 3 * arc * arc;
+    const flying = flight < 1;
+    const context = this.context;
+    const wingFade = Math.min(1, (1 - flight) / .15);
+    const wingStroke = .2 + .85 * Math.sin(elapsed / 85);
+    if (!flying && !this.motion.matches && this.birdLandedAt === undefined) {
+      this.birdLandedAt = elapsed;
+      this.scatterLandingLeaves(elapsed);
+    }
+    const landingAge = elapsed - (this.birdLandedAt ?? -Infinity);
+    const bounce = landingAge < 900 ? Math.sin(landingAge / 100) * Math.exp(-landingAge / 300) * 5 : 0;
+
+    context.save();
+    context.translate(x, y + bounce);
+    context.scale(birdScale, birdScale);
+    context.rotate(-.12 * Math.sin(Math.PI * 2 * flight));
+    context.globalAlpha = .96;
+    if (flying) {
+      context.save();
+      context.translate(2, -2);
+      context.scale(.8, wingStroke * .8);
+      context.globalAlpha = .65 * wingFade;
+      this.drawBirdDots(context, birdFlightWing, '#4d5658');
+      context.restore();
+    }
+    this.drawBirdDots(context, birdTail, '#303839');
+    this.drawBirdDots(context, birdBody, '#303638');
+    this.drawBirdDots(context, birdHead, '#252c2e');
+    this.drawBirdDots(context, birdFoldedWing, '#41494b');
+    if (flying) {
+      context.save();
+      context.translate(-4, -3);
+      context.scale(1, wingStroke);
+      context.globalAlpha = .96 * wingFade;
+      this.drawBirdDots(context, birdFlightWing, '#222b2d');
+      context.restore();
+    }
+    this.drawBirdDots(context, birdBeak, '#292f30');
+    this.drawBirdDots(context, [{ x: 21, y: -12, radius: 1.6 }], '#d2d0bd');
+    context.save();
+    context.globalAlpha = Math.max(0, Math.min(1, (flight - .82) / .18));
+    this.drawBirdDots(context, birdFeet, '#252c2e');
+    context.restore();
+    context.restore();
+  }
+
+  private drawBirdDots(context: CanvasRenderingContext2D, dots: BirdDot[], color: string): void {
+    context.fillStyle = color;
+    context.beginPath();
+    for (const dot of dots) {
+      context.moveTo(dot.x + dot.radius, dot.y);
+      context.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+    }
+    context.fill();
   }
 
   private isAnimatedLeaf(dot: BonsaiParticle): boolean {
