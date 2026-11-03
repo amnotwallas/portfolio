@@ -1,4 +1,4 @@
-<div class="page-shell">
+<div class="page-shell" [class.tree-started]="treeStarted()">
   <header class="site-header">
     <a class="monogram" href="#home" aria-label="Walter Ambriz, home">WA<span>.</span></a>
 
@@ -16,7 +16,6 @@
       <p class="eyebrow">{{ copy().role }}</p>
       <h1>{{ profile.name }}<span>.</span></h1>
       <div class="message-frame" [attr.aria-hidden]="!treeStarted()">
-        <div class="message-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="message-stack">
           @for (message of copy().messages; track $index) {
             <div class="message" [class.active]="selectedMessage() === $index" [attr.aria-hidden]="selectedMessage() !== $index">

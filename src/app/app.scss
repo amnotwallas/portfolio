@@ -73,16 +73,12 @@
   text-align: left;
 }
 
-.site-header, .hero > :is(.eyebrow, h1, .hero-actions) { animation: content-enter 420ms cubic-bezier(.22, 1, .36, 1) both; }
+.site-header, .hero { opacity: 0; visibility: hidden; }
+.page-shell.tree-started .site-header, .hero.tree-started {
+  visibility: visible;
+  animation: content-enter 420ms cubic-bezier(.22, 1, .36, 1) both;
+}
 @keyframes content-enter {
-  from { opacity: .7; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.hero .message-stack, .hero > :is(.message-nav, .experience) { opacity: 0; transform: translateY(12px); }
-.hero.tree-started .message-stack, .hero.tree-started > :is(.message-nav, .experience) {
-  animation: tree-synced-enter 420ms cubic-bezier(.22, 1, .36, 1) 180ms both;
-}
-@keyframes tree-synced-enter {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
@@ -129,22 +125,6 @@ h2 {
 }
 
 .message-frame { position: relative; width: 100%; max-width: 520px; }
-.message-skeleton {
-  position: absolute;
-  top: 13px;
-  left: 0;
-  right: 0;
-  display: grid;
-  gap: 12px;
-  opacity: .7;
-  pointer-events: none;
-  transition: opacity 180ms ease;
-}
-.message-skeleton span { height: 11px; border-radius: 6px; background: #d8dfdb; }
-.message-skeleton span:first-child { width: 76%; height: 25px; margin-bottom: 10px; }
-.message-skeleton span:nth-child(2) { width: 92%; }
-.message-skeleton span:last-child { width: 68%; }
-.hero.tree-started .message-skeleton { opacity: 0; }
 .message-stack {
   display: grid;
   width: 100%;
@@ -314,8 +294,6 @@ h2 {
 .copy-feedback { display: block; min-height: 18px; margin-top: 8px; color: var(--teal-dark); font-size: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .message-skeleton { display: none; }
-  .hero .message-stack, .hero > :is(.message-nav, .experience) { opacity: 1; transform: none; }
   .icon-link::before, .icon-link::after { transition: none; }
 }
 
