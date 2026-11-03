@@ -342,8 +342,9 @@ h2 {
 
 @media (max-width: 699px) and (min-height: 800px) {
   .content {
+    --mobile-tree-height: min(48svh, 75vw, 460px);
     align-items: flex-end;
-    padding-top: calc(min(42svh, 65vw, 400px) + 24px);
+    padding-top: calc(var(--mobile-tree-height) + 24px);
   }
-  .hero-artwork { height: min(42svh, 65vw, 400px); }
+  .hero-artwork { height: var(--mobile-tree-height); }
 }
