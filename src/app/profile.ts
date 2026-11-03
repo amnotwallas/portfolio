@@ -13,13 +13,28 @@ export const profile = {
 
 export const translations = {
   en: {
-    navLabel: 'Contact and language',
+    navLabel: 'Language selection',
     languageLabel: 'Language',
     heroLabel: 'Introduction',
     role: 'BACKEND & AI ENGINEER',
-    headlineLine1: 'I build backend APIs',
-    headlineLine2: 'and test AI agents.',
-    summary: 'At IBICARE, MLflow checks in CI/CD catch prompt regressions and safety violations before each deployment.',
+    messageNavLabel: 'Explore my work; selecting a message stops automatic rotation',
+    messages: [
+      {
+        topic: 'Backend',
+        headline: 'I build backend APIs and integrate AI agents.',
+        summary: 'At IBICARE, I connected Neuroa agents to APIs for health-record queries and appointment scheduling.',
+      },
+      {
+        topic: 'AI Engineering',
+        headline: 'I evaluate AI before deployment.',
+        summary: 'At IBICARE, I built MLflow checks in CI/CD for prompt regressions, tool-calling failures, hallucinations, and safety issues.',
+      },
+      {
+        topic: 'Access control',
+        headline: 'I make AI respect user roles.',
+        summary: 'At IBICARE, I applied role-based access across the app and Neuroa for users, admins, and health professionals.',
+      },
+    ],
     downloadCv: 'Download CV',
     emailAction: 'Copy email',
     emailCopied: 'Email copied',
@@ -34,13 +49,28 @@ export const translations = {
     companyAppAction: 'Open IBICARE app on Google Play',
   },
   es: {
-    navLabel: 'Contacto e idioma',
+    navLabel: 'Selección de idioma',
     languageLabel: 'Idioma',
     heroLabel: 'Presentación',
-    role: 'INGENIERO BACKEND E IA',
-    headlineLine1: 'Desarrollo APIs de backend',
-    headlineLine2: 'y evalúo agentes de IA.',
-    summary: 'En IBICARE, las pruebas con MLflow en CI/CD detectan regresiones en prompts y fallos de seguridad antes de cada despliegue.',
+    role: 'BACKEND & AI ENGINEER',
+    messageNavLabel: 'Explorar mi trabajo; elegir un mensaje detiene la rotación automática',
+    messages: [
+      {
+        topic: 'Backend',
+        headline: 'Desarrollo APIs de backend e integro agentes de IA.',
+        summary: 'En IBICARE, conecté agentes Neuroa con APIs para consultar historiales de salud y programar citas.',
+      },
+      {
+        topic: 'AI Engineering',
+        headline: 'Evalúo la IA antes de desplegarla.',
+        summary: 'En IBICARE, creé pruebas con MLflow en CI/CD para regresiones en prompts, fallos en llamadas a herramientas, alucinaciones y seguridad.',
+      },
+      {
+        topic: 'Control de acceso',
+        headline: 'Hago que la IA respete los roles.',
+        summary: 'En IBICARE, apliqué permisos por rol en la app y Neuroa para usuarios, administradores y profesionales de salud.',
+      },
+    ],
     downloadCv: 'Descargar CV',
     emailAction: 'Copiar email',
     emailCopied: 'Email copiado',

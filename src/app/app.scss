@@ -6,6 +6,8 @@
 }
 
 .site-header {
+  position: relative;
+  z-index: 2;
   height: 88px;
   width: min(100% - 12vw, 1480px);
   margin: 0 auto;
@@ -69,22 +71,32 @@
   width: min(46vw, 540px);
   margin: 2vh 0 0 clamp(24px, 6vw, 110px);
   text-align: left;
-  animation: hero-enter 700ms cubic-bezier(.22, 1, .36, 1) paused both;
-}
-.hero.hero-started {
-  animation-play-state: running;
 }
 
-@keyframes hero-enter {
-  from { opacity: 0; transform: translateY(16px); }
+.site-header, .hero > :is(.eyebrow, h1, .hero-actions) { animation: content-enter 420ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes content-enter {
+  from { opacity: .7; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero .message-stack, .hero > :is(.message-nav, .experience) { opacity: 0; transform: translateY(12px); }
+.hero.tree-started .message-stack, .hero.tree-started > :is(.message-nav, .experience) {
+  animation: tree-synced-enter 420ms cubic-bezier(.22, 1, .36, 1) 180ms both;
+}
+@keyframes tree-synced-enter {
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @media (min-width: 700px) {
-  .hero > :is(.eyebrow, h1, h2, .summary, .experience) {
+  .hero > :is(.eyebrow, h1, .experience) {
     width: fit-content;
     background: rgba(247, 246, 243, .82);
     box-shadow: 0 0 14px 8px rgba(247, 246, 243, .74);
+  }
+  .message > :is(h2, .summary) {
+    width: fit-content;
+    background: rgba(247, 246, 243, .52);
+    box-shadow: 0 0 14px 8px rgba(247, 246, 243, .4);
   }
 }
 
@@ -116,6 +128,70 @@ h2 {
   text-wrap: balance;
 }
 
+.message-frame { position: relative; width: 100%; max-width: 520px; }
+.message-skeleton {
+  position: absolute;
+  top: 13px;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 12px;
+  opacity: .7;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+.message-skeleton span { height: 11px; border-radius: 6px; background: #d8dfdb; }
+.message-skeleton span:first-child { width: 76%; height: 25px; margin-bottom: 10px; }
+.message-skeleton span:nth-child(2) { width: 92%; }
+.message-skeleton span:last-child { width: 68%; }
+.hero.tree-started .message-skeleton { opacity: 0; }
+.message-stack {
+  display: grid;
+  width: 100%;
+  max-width: 520px;
+}
+.message {
+  grid-area: 1 / 1;
+  align-self: end;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 130ms ease, transform 300ms cubic-bezier(.22, 1, .36, 1);
+}
+.message.active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 180ms ease 120ms, transform 300ms cubic-bezier(.22, 1, .36, 1);
+}
+.message-nav {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 520px;
+  margin-top: 0;
+}
+.message-nav button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.message-nav button span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 10px;
+  background: var(--teal-dark);
+  opacity: .21;
+  transition: width 300ms ease, opacity 300ms ease;
+}
+.message-nav button[aria-pressed="true"] span { width: 18px; opacity: .49; }
+.message-nav button:hover span { opacity: .525; }
+
 .summary {
   max-width: 490px;
   margin: 18px 0 0;
@@ -129,7 +205,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin-top: 24px;
+  margin-top: 0;
   color: var(--graphite);
   font-size: 14px;
   line-height: 1.45;
@@ -238,7 +314,8 @@ h2 {
 .copy-feedback { display: block; min-height: 18px; margin-top: 8px; color: var(--teal-dark); font-size: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero { animation: none; }
+  .message-skeleton { display: none; }
+  .hero .message-stack, .hero > :is(.message-nav, .experience) { opacity: 1; transform: none; }
   .icon-link::before, .icon-link::after { transition: none; }
 }
 
@@ -261,15 +338,15 @@ h2 {
   .language-switch button { min-width: 44px; height: 44px; font-size: 12px; }
   .content {
     min-height: calc(100svh - 72px);
-    padding: clamp(340px, 43vh, 385px) 24px 24px;
+    padding: clamp(160px, 24svh, 200px) 24px 24px;
     align-items: flex-start;
   }
   .hero-artwork {
-    top: 18px;
+    top: 8px;
     bottom: auto;
     right: auto;
     left: 50%;
-    height: clamp(250px, 38svh, 320px);
+    height: clamp(150px, 22svh, 190px);
     max-width: 90vw;
     transform: translateX(-50%);
   }
@@ -278,7 +355,7 @@ h2 {
   h1 { font-size: clamp(43px, 12vw, 52px); }
   h2 { margin-top: 11px; font-size: clamp(23px, 6.4vw, 28px); }
   .summary { margin-top: 13px; font-size: 16px; line-height: 1.52; }
-  .experience { gap: 3px; margin-top: 17px; font-size: 13px; }
+  .experience { gap: 3px; font-size: 13px; }
   .experience span + span { color: #596169; font-size: 13px; }
   .hero-actions { margin-top: 16px; }
   .cv-link { font-size: 14px; }

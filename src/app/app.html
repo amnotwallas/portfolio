@@ -12,12 +12,26 @@
 
   <main id="home" class="content">
     <app-bonsai-canvas class="hero-artwork" aria-hidden="true" (growthStarted)="startHeroAnimation()" />
-    <section class="hero" [class.hero-started]="heroStarted()" [attr.aria-label]="copy().heroLabel">
+    <section class="hero" [class.tree-started]="treeStarted()" [attr.aria-label]="copy().heroLabel">
       <p class="eyebrow">{{ copy().role }}</p>
       <h1>{{ profile.name }}<span>.</span></h1>
-      <h2>{{ copy().headlineLine1 }} {{ copy().headlineLine2 }}</h2>
-      <p class="summary">{{ copy().summary }}</p>
-      <div class="experience" [attr.aria-label]="copy().experienceLabel">
+      <div class="message-frame" [attr.aria-hidden]="!treeStarted()">
+        <div class="message-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="message-stack">
+          @for (message of copy().messages; track $index) {
+            <div class="message" [class.active]="selectedMessage() === $index" [attr.aria-hidden]="selectedMessage() !== $index">
+              <h2>{{ message.headline }}</h2>
+              <p class="summary">{{ message.summary }}</p>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="message-nav" role="group" [attr.aria-label]="copy().messageNavLabel" [attr.aria-hidden]="!treeStarted()" [attr.inert]="treeStarted() ? null : ''" (focusin)="stopRotation()">
+        @for (message of copy().messages; track $index) {
+          <button type="button" [attr.aria-label]="message.topic" [attr.aria-pressed]="selectedMessage() === $index" (click)="selectMessage($index)"><span aria-hidden="true"></span></button>
+        }
+      </div>
+      <div class="experience" [attr.aria-label]="copy().experienceLabel" [attr.aria-hidden]="!treeStarted()" [attr.inert]="treeStarted() ? null : ''">
         <span class="experience-primary">
           {{ copy().experienceRole }} <i aria-hidden="true">·</i>
           <a class="company-link" [href]="profile.companyUrl" target="_blank" rel="noopener noreferrer">{{ profile.company }}</a>
