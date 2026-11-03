@@ -339,3 +339,11 @@ h2 {
   .cv-link { font-size: 14px; }
   .copy-feedback { min-height: 14px; margin-top: 5px; font-size: 11px; }
 }
+
+@media (max-width: 699px) and (min-height: 800px) {
+  .content {
+    align-items: flex-end;
+    padding-top: calc(min(42svh, 65vw, 400px) + 24px);
+  }
+  .hero-artwork { height: min(42svh, 65vw, 400px); }
+}
