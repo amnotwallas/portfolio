@@ -3,6 +3,7 @@
   z-index: 1;
   min-height: 100svh;
   overflow: hidden;
+  background: var(--warm-white);
 }
 
 .site-header {
@@ -64,6 +65,7 @@
   object-position: center;
   pointer-events: none;
 }
+.hero-artwork.fallback-visible { mix-blend-mode: darken; }
 
 .hero {
   position: relative;
@@ -86,13 +88,13 @@
 @media (min-width: 700px) {
   .hero > :is(.eyebrow, h1, .experience) {
     width: fit-content;
-    background: rgba(247, 246, 243, .82);
-    box-shadow: 0 0 14px 8px rgba(247, 246, 243, .74);
+    background: rgba(242, 237, 227, .82);
+    box-shadow: 0 0 14px 8px rgba(242, 237, 227, .74);
   }
   .message > :is(h2, .summary) {
     width: fit-content;
-    background: rgba(247, 246, 243, .52);
-    box-shadow: 0 0 14px 8px rgba(247, 246, 243, .4);
+    background: rgba(242, 237, 227, .52);
+    box-shadow: 0 0 14px 8px rgba(242, 237, 227, .4);
   }
 }
 

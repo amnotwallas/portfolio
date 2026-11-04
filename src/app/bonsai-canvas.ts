@@ -122,6 +122,7 @@ export class BonsaiCanvas implements AfterViewInit, OnDestroy {
 
   private showFallback(): void {
     this.surface.nativeElement.hidden = true;
+    this.host.nativeElement.classList.add('fallback-visible');
     this.fallback.nativeElement.src = 'bonsai.jpg';
     this.fallback.nativeElement.hidden = false;
     this.announceGrowthStarted();
