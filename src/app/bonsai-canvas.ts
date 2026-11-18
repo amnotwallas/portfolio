@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, ViewChild, inject } from '@angular/core';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress, landscapeVariant, type BonsaiData, type BonsaiParticle } from './bonsai-data';
-import { createMistStamp, paintLandscape, paintLandscapeMotion, sampledWater } from './landscape';
+import { createAtmosphereStamps, paintLandscape, paintLandscapeMotion, sampledWater } from './landscape';
 import { buildCouriers, ease, scheduleAssembly, swarmWeight, variation, type AssemblyData, type Lane } from './forest-assembly';
 
 type BirdDot = { x: number; y: number; radius: number };
@@ -85,7 +85,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   private context?: CanvasRenderingContext2D;
   private landscape?: HTMLCanvasElement;
   private landscapeContext?: CanvasRenderingContext2D;
-  private mistStamp?: HTMLCanvasElement;
+  private atmosphereStamps?: ReturnType<typeof createAtmosphereStamps>;
   private readonly landmarks = new Map<Backdrop, AssemblyData | 'pending' | null>();
   private backdropAssembly?: BackdropAssembly;
   private backdropLanes: Lane[] = [];
@@ -157,7 +157,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       canvas.addEventListener('pointerleave', () => { this.cursor = undefined; }, { signal: this.abort.signal });
       this.landscape = document.createElement('canvas');
       this.landscapeContext = this.landscape.getContext('2d', { alpha: false }) ?? undefined;
-      this.mistStamp = createMistStamp();
+      this.atmosphereStamps = createAtmosphereStamps();
       this.layer = document.createElement('canvas');
       this.layerContext = this.layer.getContext('2d') ?? undefined;
       if (!this.layerContext || !this.landscapeContext) return this.showFallback();
@@ -365,7 +365,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     if ((water || atmosphere) && !instant) {
       context.setTransform(pixelWidth / this.viewportWidth, 0, 0, pixelHeight / this.viewportHeight, 0, 0);
       paintLandscapeMotion(context, this.viewportWidth, this.viewportHeight, compact, elapsed,
-        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.mistStamp);
+        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.atmosphereStamps);
       if (atmosphere) this.drawAtmosphere(context, elapsed, compact, atmosphere);
       context.setTransform(1, 0, 0, 1, 0, 0);
     }
@@ -588,7 +588,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       this.scatterLandingLeaves(elapsed);
     }
     const landingAge = elapsed - (this.birdLandedAt ?? -Infinity);
-    const bounce = landingAge < 900 ? Math.sin(landingAge / 100) * Math.exp(-landingAge / 300) * 5 : 0;
+    const bounce = !this.reduced && landingAge < 900 ? Math.sin(landingAge / 100) * Math.exp(-landingAge / 300) * 5 : 0;
 
     context.save();
     context.translate(x, y + bounce);

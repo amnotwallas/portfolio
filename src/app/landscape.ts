@@ -372,43 +372,187 @@ export function paintLandscape(ctx: CanvasRenderingContext2D, width: number, hei
   ctx.restore();
 }
 
-export function createMistStamp(): HTMLCanvasElement | undefined {
+function createStamp(center: string, mid: string, edge: string): HTMLCanvasElement | undefined {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 128;
   const context = canvas.getContext('2d');
   if (!context) return;
-  const mist = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-  mist.addColorStop(0, '#f8f3e7d8');
-  mist.addColorStop(.65, '#f8f3e735');
-  mist.addColorStop(1, '#f8f3e700');
-  context.fillStyle = mist;
+  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, center);
+  gradient.addColorStop(.65, mid);
+  gradient.addColorStop(1, edge);
+  context.fillStyle = gradient;
   context.fillRect(0, 0, 128, 128);
   return canvas;
 }
 
+export function createAtmosphereStamps() {
+  return {
+    mist: createStamp('#f8f3e7d8', '#f8f3e735', '#f8f3e700'),
+    glow: createStamp('#ffe6a8', '#efaf6b49', '#d98b4200'),
+    smoke: createStamp('#777d6d9c', '#97978628', '#afae9f00'),
+  };
+}
+
+type AtmosphereStamps = ReturnType<typeof createAtmosphereStamps>;
+const lanterns = {
+  portrait: { x: 747 / 863, light: 1448 / 1823, roof: 1396 / 1823 },
+  wide: { x: 1497 / 1672, light: 660 / 941, roof: 610 / 941 },
+};
+
+function paintLantern(
+  ctx: CanvasRenderingContext2D, width: number, height: number, layout: keyof typeof lanterns,
+  elapsed: number, gain: number, stamps: AtmosphereStamps,
+): void {
+  const lantern = lanterns[layout];
+  const x = width * lantern.x;
+  const y = height * lantern.light;
+  const roof = height * lantern.roof;
+  const size = Math.min(20, Math.max(7, width * .014));
+  if (stamps.glow) {
+    const light = .73 + .14 * Math.sin(elapsed / 670) + .09 * Math.sin(elapsed / 173);
+    ctx.globalAlpha = gain * light * .76;
+    ctx.drawImage(stamps.glow, x - size * 1.65, y - size * 1.45, size * 3.3, size * 2.9);
+    ctx.globalAlpha = gain * light * .86;
+    ctx.drawImage(stamps.glow, x - size * .5, y - size * .68, size, size * 1.36);
+  }
+  if (stamps.smoke) {
+    const lift = Math.min(53, Math.max(26, height * .055));
+    const puffs = width < 640 ? 8 : 12;
+    for (let i = 0; i < puffs; i++) {
+      const phase = (elapsed / 5700 + i / puffs) % 1;
+      const sway = Math.sin(phase * 7.2 - elapsed / 2100) * phase;
+      const px = x + lift * (.22 * phase + .24 * sway);
+      const py = roof - 2 - lift * phase;
+      const radius = 1.1 + size * (.08 + phase * .38);
+      ctx.globalAlpha = gain * .53 * Math.sin(Math.PI * phase);
+      ctx.drawImage(stamps.smoke, px - radius, py - radius * 1.35, radius * 2, radius * 2.7);
+    }
+  }
+}
+
+function fallCenter(start: number, end: number, lane: number, t: number): number {
+  return start + (end - start) * (1 - (1 - t) ** 2.35) + lane * (1 - t * .17);
+}
+
+function paintFallStreams(
+  ctx: CanvasRenderingContext2D, cascade: Cascade, width: number, height: number, compact: boolean,
+  elapsed: number, gain: number, phase: number,
+): void {
+  const count = compact ? 5 : 8;
+  const start = cascade.top[0] * width;
+  const end = cascade.foot[0] * width;
+  const lip = cascade.top[1] * height;
+  const depth = (cascade.foot[1] - cascade.top[1]) * height;
+  const spread = cascade.width * width;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < count; i++) {
+    const t = (elapsed / (1110 + (i % 4) * 143) + i * .287 + phase) % 1;
+    const lane = spread * ((i + .5) / count - .5);
+    const tail = Math.max(0, t - (.105 + i % 3 * .032));
+    const bend = (tail + t) * .5;
+    const contrast = i % 4 === 1;
+    ctx.strokeStyle = contrast ? '#80a29a' : '#fffbee';
+    ctx.lineWidth = compact ? .86 : 1.2;
+    ctx.globalAlpha = gain * (contrast ? .38 : .84) * Math.min(1, t * 8, (1 - t) * 8);
+    ctx.beginPath();
+    ctx.moveTo(fallCenter(start, end, lane, tail), lip + tail * depth);
+    ctx.quadraticCurveTo(fallCenter(start, end, lane, bend), lip + bend * depth,
+      fallCenter(start, end, lane, t), lip + t * depth);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#fff8e5';
+  ctx.lineWidth = .65;
+  for (let i = 0; i < 3; i++) {
+    const t = (elapsed / 1200 + phase + i / 3) % 1;
+    const x = end + ((i - 1) * .26 * spread);
+    const y = lip + depth + t * 3;
+    const ripple = spread * (.055 + t * .14);
+    ctx.globalAlpha = gain * .56 * Math.sin(Math.PI * t);
+    ctx.beginPath();
+    ctx.moveTo(x - ripple, y);
+    ctx.quadraticCurveTo(x, y + .9, x + ripple, y);
+    ctx.stroke();
+  }
+}
+
+const fishMarks = [
+  [-8, -2.6, .95], [-7, -1.2, .9], [-7, 1.2, .85], [-8, 2.5, .7], [-5.5, 0, 1],
+  [-3.6, -.8, 1.2], [-3.2, 1, 1.1], [-1.8, -2, 1.1], [-1.1, .1, 1.6],
+  [-1.2, 2, 1], [.4, -2.6, 1.1], [.9, -.7, 1.5], [.9, 1.6, 1.3],
+  [2.9, -1.6, 1.3], [3.1, .7, 1.5], [5.2, -.4, 1.3], [6.3, .1, .7],
+] as const;
+
+function paintFishJump(
+  ctx: CanvasRenderingContext2D, width: number, height: number, shoreline: number,
+  compact: boolean, elapsed: number, gain: number,
+): void {
+  const age = (elapsed - 13600) % 28500;
+  if (age < 0 || age >= 2150) return;
+  const flight = 920;
+  const origin = width * (compact ? .23 : .43);
+  const distance = Math.min(width * .1, compact ? 38 : 83);
+  const surface = height * (shoreline + (1 - shoreline) * .5);
+  const rise = Math.min(height * .036, compact ? 22 : 32);
+  const scale = Math.min(1.5, Math.max(.86, width / 885));
+
+  ctx.save();
+  ctx.lineWidth = .75;
+  ctx.strokeStyle = '#48796e';
+  for (let i = 0; i < 2; i++) {
+    const wave = (age - i * flight) / 1200;
+    if (wave <= 0 || wave >= 1) continue;
+    const spread = 2 + wave * 22 * scale;
+    ctx.globalAlpha = gain * .58 * (1 - wave) * Math.min(1, wave * 12);
+    ctx.beginPath();
+    ctx.ellipse(origin + i * distance, surface, spread, spread * .18, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (age < flight) {
+    const t = age / flight;
+    ctx.translate(origin + distance * t, surface - 4 * rise * t * (1 - t));
+    ctx.rotate(Math.atan2(4 * rise * (2 * t - 1), distance));
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = gain * Math.min(1, t * 12, (1 - t) * 13);
+    ctx.fillStyle = '#985739';
+    ctx.beginPath();
+    for (const [x, y, r] of fishMarks) {
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#f4bc8b';
+    ctx.beginPath();
+    ctx.arc(.3, -1.75, .95, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function paintLandscapeMotion(
   ctx: CanvasRenderingContext2D, width: number, height: number, compact: boolean, elapsed: number,
-  backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, mist?: CanvasImageSource,
+  backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, stamps?: AtmosphereStamps,
 ): void {
   if (width <= 0 || height <= 0) return;
   ctx.save();
   const water = backdrop ? sampledWater[backdrop] : undefined;
   const cascades = water?.cascades ?? (compact ? compactFalls : wideFalls);
-  ctx.globalAlpha = waterGain;
   for (let index = 0; waterGain && index < cascades.length; index++) {
     const cascade = cascades[index];
     const phase = index === 0 ? 0 : .47;
+    paintFallStreams(ctx, cascade, width, height, compact, elapsed, waterGain, phase);
     const fallWidth = cascade.width * width;
     const vertical = (cascade.foot[1] - cascade.top[1]) * height;
     const glints = compact ? 8 : 14;
+    ctx.globalAlpha = waterGain;
     ctx.fillStyle = '#fffbedbc';
     ctx.beginPath();
     for (let i = 0; i < glints; i++) {
       const t = (elapsed / (1650 + i % 5 * 189) + i * .419 + phase) % 1;
       const u = (i / glints - .47) * fallWidth;
-      const x = width * (cascade.top[0] + (cascade.foot[0] - cascade.top[0]) * (1 - (1 - t) ** 2.35)) + u * (1 - t * .17);
+      const x = fallCenter(width * cascade.top[0], width * cascade.foot[0], u, t);
       const y = height * cascade.top[1] + t * vertical - (1 - t) * u * .075;
-      const radius = (.38 + (i % 4) * .09) * Math.min(1, t * 9, (1 - t) * 14);
+      const radius = (.46 + (i % 4) * .09) * Math.min(1, t * 9, (1 - t) * 14);
       for (let tail = 0; tail < 3; tail++) {
         const dropX = x - tail * .4;
         const dropY = y + tail * (1.2 + t * .48);
@@ -432,15 +576,17 @@ export function paintLandscapeMotion(
     ctx.globalAlpha *= .58;
     ctx.fillRect(left + length + 2.5, y, length * .24, .65);
   }
+  if (waterGain) paintFishJump(ctx, width, height, shoreline, compact, elapsed, waterGain);
 
-  if (mist && mistGain) {
+  if (stamps?.mist && mistGain) {
     const waterfall = cascades[0];
     const drift = Math.sin(elapsed / 4800);
     const cx = width * waterfall.foot[0] + drift * (compact ? 3 : 8);
     const cy = height * waterfall.foot[1] + 3 * Math.sin(elapsed / 3700);
     const radius = width * (compact ? .2 : .12);
     ctx.globalAlpha = mistGain * (.23 + .06 * drift);
-    ctx.drawImage(mist, cx - radius, cy - radius * .3, radius * 2, radius * .6);
+    ctx.drawImage(stamps.mist, cx - radius, cy - radius * .3, radius * 2, radius * .6);
   }
+  if (backdrop && stamps && mistGain) paintLantern(ctx, width, height, backdrop, elapsed, mistGain, stamps);
   ctx.restore();
 }
