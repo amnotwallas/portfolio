@@ -1,4 +1,4 @@
-"""Extract local stipple marks from the original bonsai into a compact Canvas dataset."""
+"""Extract local stipple marks from a bonsai or landscape into a compact Canvas dataset."""
 
 from __future__ import annotations
 
@@ -116,20 +116,25 @@ def _growth(x: np.ndarray, y: np.ndarray, rgb: np.ndarray) -> tuple[np.ndarray, 
     return material, np.clip(reveal, 0, 1)
 
 
-def extract(path: Path) -> Dataset:
+def extract(path: Path, *, landscape: bool = False) -> Dataset:
     image = np.asarray(Image.open(path).convert("RGB"))
     height, width = image.shape[:2]
     if width > 16383 or height > 16383:
         raise ValueError("PNG dimensions exceed the particle format")
-    border = np.concatenate((image[:32].reshape(-1, 3), image[-32:].reshape(-1, 3), image[:, :32].reshape(-1, 3), image[:, -32:].reshape(-1, 3)))
-    background = tuple(int(c) for c in np.median(border, axis=0))
+    if landscape:
+        # The shoreline reaches the edges, so sample only the quiet sky.
+        paper = image[:max(1, min(32, height // 4))].reshape(-1, 3)
+    else:
+        paper = np.concatenate((image[:32].reshape(-1, 3), image[-32:].reshape(-1, 3), image[:, :32].reshape(-1, 3), image[:, -32:].reshape(-1, 3)))
+    background = tuple(int(c) for c in np.median(paper, axis=0))
     difference = np.max(np.abs(image.astype(np.int16) - np.asarray(background)), axis=2)
-    # A 4×4 local sample approximates each stipple, never one mark per pixel.
-    foreground = difference > 19
+    # The full-viewport plate needs finer source spacing than the scaled-down bonsai.
+    tile_size = 3 if landscape else 4
+    foreground = difference > (13 if landscape else 19)
     ys, xs = np.nonzero(foreground)
     if not len(xs):
         return Dataset(width, height, background, ())
-    tile = (ys // 4) * math.ceil(width / 4) + xs // 4
+    tile = (ys // tile_size) * math.ceil(width / tile_size) + xs // tile_size
     order = np.argsort(tile, kind="stable")
     tile, xs, ys = tile[order], xs[order], ys[order]
     first = np.r_[0, np.flatnonzero(np.diff(tile)) + 1]
@@ -142,10 +147,16 @@ def extract(path: Path) -> Dataset:
     strong = weights * weights
     strong_sum = np.add.reduceat(strong, first)
     rgb = np.stack([np.rint(np.add.reduceat(image[ys, xs, channel] * strong, first) / strong_sum) for channel in range(3)], axis=1).astype(np.uint8)
-    material, progress = _growth(cx.astype(np.float32), cy.astype(np.float32), rgb)
-    seed = tile[first].astype(np.uint64)
-    cx = np.clip(cx + ((seed * 137 + 91) % 257) / 256 - .5, 0, width - 1)
-    cy = np.clip(cy + ((seed * 83 + 193) % 257) / 256 - .5, 0, height - 1)
+    random = np.random.default_rng(417)
+    scatter = random.uniform(-.31, .31, size=(2, len(cx))) * tile_size
+    if landscape:
+        material = np.full(len(cx), 4, dtype=np.uint8)
+        progress = .16 + .44 * (1 - cy / height) + .22 * random.random(len(cx))
+        rgb = (rgb // 4) * 4 + 2
+    else:
+        material, progress = _growth(cx.astype(np.float32), cy.astype(np.float32), rgb)
+    cx = np.clip(cx + scatter[0], 0, width - 1)
+    cy = np.clip(cy + scatter[1], 0, height - 1)
     reveal = np.rint(progress * 65535).astype(np.uint16)
     particles = tuple(Particle(int(round(cx[i] * 4)), int(round(cy[i] * 4)), int(radius[i]), int(material[i]), *(int(c) for c in rgb[i]), 255, int(reveal[i])) for i in range(len(cx)))
     return Dataset(width, height, background, particles)
@@ -175,8 +186,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--landscape", action="store_true", help="Use the sky color and skip the original bonsai's wood guides.")
     args = parser.parse_args()
-    data = extract(args.source)
+    data = extract(args.source, landscape=args.landscape)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     export(data, args.output)
     print(f"{len(data.particles):,} particles, {data.width}×{data.height}, {args.output.stat().st_size:,} bytes")
