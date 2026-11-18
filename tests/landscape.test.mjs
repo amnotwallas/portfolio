@@ -10,9 +10,10 @@ test('landscape marks are reproducible while the water and mist move within a bo
     rect(...values) { this.marks.push(values); }
   }
 
-  function observe(paint, elapsed, backdrop) {
+  function observe(paint, elapsed, backdrop, water = 1, mist = 1) {
     let fills = 0;
     let droplets = 0;
+    let mistDraws = 0;
     let signature = 0;
     const record = (value) => {
       signature = (Math.imul(signature, 31) + Math.round(value * 100)) | 0;
@@ -35,9 +36,10 @@ test('landscape marks are reproducible while the water and mist move within a bo
       quadraticCurveTo(...values) { values.forEach(record); },
       bezierCurveTo(...values) { values.forEach(record); },
       stroke() {},
+      drawImage(_stamp, ...values) { mistDraws++; values.forEach(record); },
     };
-    paint(ctx, 390, 844, true, elapsed, backdrop);
-    return { fills, signature, droplets };
+    paint(ctx, 390, 844, true, elapsed, backdrop, water, mist, {});
+    return { fills, signature, droplets, mistDraws };
   }
 
   const path = globalThis.Path2D;
@@ -48,6 +50,9 @@ test('landscape marks are reproducible while the water and mist move within a bo
     assert.deepEqual(observe(paintLandscape, 0), first);
     const motion = observe(paintLandscapeMotion, 0);
     assert.ok(motion.fills < 50);
+    assert.equal(motion.mistDraws, 1);
+    assert.equal(observe(paintLandscapeMotion, 0, undefined, 1, 0).mistDraws, 0);
+    assert.equal(observe(paintLandscapeMotion, 0, undefined, 0, 0).droplets, 0);
     assert.ok(motion.droplets >= 20 && motion.droplets <= 80);
     assert.notEqual(observe(paintLandscapeMotion, 2700).signature, motion.signature);
     const portrait = observe(paintLandscapeMotion, 0, 'portrait');

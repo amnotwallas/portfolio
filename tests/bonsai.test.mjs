@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { decodeBonsai, fitBonsai, growthProgress, treeArrival } from '../src/app/bonsai-data.ts';
+import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress } from '../src/app/bonsai-data.ts';
 
 test('loads the generated dots with valid dimensions and growth metadata', () => {
   const file = readFileSync('public/bonsai-particles.bin');
@@ -25,13 +25,6 @@ test('growth has a full reduced-motion state', () => {
   assert.equal(growthProgress(0, false), 0);
   assert.equal(growthProgress(6200, false), 1);
   assert.equal(growthProgress(0, true), 1);
-});
-
-test('the original growth order sits inside the shared landscape assembly', () => {
-  assert.equal(treeArrival(0), .19);
-  assert.ok(treeArrival(.58) > .6);
-  assert.ok(treeArrival(.78) > treeArrival(.58));
-  assert.ok(treeArrival(1) < 1);
 });
 
 test('viewport sizing protects the text clearing and aligns the tree with the shore', () => {
@@ -76,9 +69,10 @@ function createCanvas(motion = {}, browser = {}) {
   runInNewContext(compiledCanvas, {
     module,
     exports: module.exports,
-    require: (name) => name === '@angular/core' ? angular : {},
+    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS },
     window: { matchMedia: () => motion },
     AbortController,
+    cancelAnimationFrame() {},
     ...browser,
   });
   return new module.exports.BonsaiCanvas();
@@ -181,8 +175,26 @@ test('falling foliage varies its timing and can drift from separate canopies tog
   component.drawFallingLeaves(nextFallAt);
   assert.equal(component.fallingLeaves.length, 1);
   assert.notEqual(component.nextFallAt - nextFallAt, nextFallAt - firstFallAt);
-  motion.matches = true;
+  component.onMotionChange({ matches: true });
   drawn.length = 0;
   component.drawFallingLeaves(nextFallAt + 2000);
   assert.equal(drawn.length, 0);
+});
+
+test('switching reduced motion on during construction settles the scene', () => {
+  const component = createCanvas({ matches: false }, {
+    cancelAnimationFrame() {},
+    document: { hidden: false },
+  });
+  component.view = {};
+  component.elapsed = 1250;
+  let progress;
+  let presented;
+  component.paintUntil = (value) => { progress = value; };
+  component.present = (time) => { presented = time; };
+
+  component.onMotionChange({ matches: true });
+
+  assert.equal(progress, 1);
+  assert.ok(presented > 6200);
 });

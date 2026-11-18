@@ -1,5 +1,6 @@
 type Coordinate = readonly [x: number, y: number];
 type Cascade = { top: Coordinate; foot: Coordinate; width: number };
+export type WaterLayout = { cascades: readonly Cascade[]; shoreline: number };
 type Rock = readonly [x: number, floor: number, halfWidth: number, height: number, seed: number];
 type Tree = readonly [x: number, floor: number, height: number, lean: number, seed: number];
 
@@ -35,7 +36,7 @@ const wideFalls: Cascade[] = [
   { top: [.499, .884], foot: [.49, .93], width: .145 },
 ];
 // Match the glints to the waterfall lips and splash pools in each sampled backdrop.
-const sampledWater = {
+export const sampledWater = {
   portrait: {
     cascades: [
       { top: [.234, .779], foot: [.203, .868], width: .122 },
@@ -371,15 +372,31 @@ export function paintLandscape(ctx: CanvasRenderingContext2D, width: number, hei
   ctx.restore();
 }
 
+export function createMistStamp(): HTMLCanvasElement | undefined {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  const mist = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+  mist.addColorStop(0, '#f8f3e7d8');
+  mist.addColorStop(.65, '#f8f3e735');
+  mist.addColorStop(1, '#f8f3e700');
+  context.fillStyle = mist;
+  context.fillRect(0, 0, 128, 128);
+  return canvas;
+}
+
 export function paintLandscapeMotion(
   ctx: CanvasRenderingContext2D, width: number, height: number, compact: boolean, elapsed: number,
-  backdrop?: keyof typeof sampledWater,
+  backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, mist?: CanvasImageSource,
 ): void {
   if (width <= 0 || height <= 0) return;
   ctx.save();
   const water = backdrop ? sampledWater[backdrop] : undefined;
   const cascades = water?.cascades ?? (compact ? compactFalls : wideFalls);
-  for (const [index, cascade] of cascades.entries()) {
+  ctx.globalAlpha = waterGain;
+  for (let index = 0; waterGain && index < cascades.length; index++) {
+    const cascade = cascades[index];
     const phase = index === 0 ? 0 : .47;
     const fallWidth = cascade.width * width;
     const vertical = (cascade.foot[1] - cascade.top[1]) * height;
@@ -404,31 +421,26 @@ export function paintLandscapeMotion(
   }
 
   const shoreline = water?.shoreline ?? (compact ? .943 : .927);
-  for (let i = 0; i < (compact ? 13 : 25); i++) {
+  for (let i = 0; waterGain && i < (compact ? 13 : 25); i++) {
     const wave = .5 + .5 * Math.sin(elapsed / (1075 + i * 39) + i * 4.01);
     const left = ((i * .61803) % 1) * width + wave * 2.3 - 2;
     const y = height * (shoreline + ((i * .30227) % 1) * (1 - shoreline)) + wave * .65;
     const length = (5 + i % 7 * 7) * (.5 + wave * .6);
     ctx.fillStyle = i % 3 ? '#fff5d8' : '#557c6b';
-    ctx.globalAlpha = .08 + wave * wave * .31;
+    ctx.globalAlpha = waterGain * (.08 + wave * wave * .31);
     ctx.fillRect(left, y, length, .8);
     ctx.globalAlpha *= .58;
     ctx.fillRect(left + length + 2.5, y, length * .24, .65);
   }
 
-  const waterfall = cascades[0];
-  const drift = Math.sin(elapsed / 4800);
-  const cx = width * waterfall.foot[0] + drift * (compact ? 3 : 8);
-  const cy = height * waterfall.foot[1] + 3 * Math.sin(elapsed / 3700);
-  const radius = width * (compact ? .2 : .12);
-  ctx.translate(cx, cy);
-  ctx.scale(1, .3);
-  const mist = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-  mist.addColorStop(0, '#f8f3e7d8');
-  mist.addColorStop(.65, '#f8f3e735');
-  mist.addColorStop(1, '#f8f3e700');
-  ctx.globalAlpha = .23 + .06 * drift;
-  ctx.fillStyle = mist;
-  ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+  if (mist && mistGain) {
+    const waterfall = cascades[0];
+    const drift = Math.sin(elapsed / 4800);
+    const cx = width * waterfall.foot[0] + drift * (compact ? 3 : 8);
+    const cy = height * waterfall.foot[1] + 3 * Math.sin(elapsed / 3700);
+    const radius = width * (compact ? .2 : .12);
+    ctx.globalAlpha = mistGain * (.23 + .06 * drift);
+    ctx.drawImage(mist, cx - radius, cy - radius * .3, radius * 2, radius * .6);
+  }
   ctx.restore();
 }

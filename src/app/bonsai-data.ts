@@ -54,12 +54,7 @@ export const ASSEMBLY_MS = 6200;
 
 export function growthProgress(elapsedMs: number, reducedMotion: boolean): number {
   if (reducedMotion) return 1;
-  const fraction = Math.max(0, Math.min(1, elapsedMs / ASSEMBLY_MS));
-  return fraction * fraction * (3 - 2 * fraction);
-}
-
-export function treeArrival(reveal: number): number {
-  return .19 + .78 * reveal;
+  return Math.max(0, Math.min(1, elapsedMs / ASSEMBLY_MS));
 }
 
 export function fitBonsai(width: number, height: number, cssWidth: number, cssHeight: number, deviceScale: number, constrained = false) {
