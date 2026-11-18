@@ -3,13 +3,14 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { decodeBonsai, fitBonsai, growthProgress } from '../src/app/bonsai-data.ts';
+import { decodeBonsai, fitBonsai, growthProgress, treeArrival } from '../src/app/bonsai-data.ts';
 
 test('loads the generated dots with valid dimensions and growth metadata', () => {
   const file = readFileSync('public/bonsai-particles.bin');
   const data = decodeBonsai(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength));
   assert.equal(data.width, 1122);
   assert.equal(data.height, 1402);
+  assert.equal(data.background, `rgb(${file[16]} ${file[17]} ${file[18]})`);
   assert.ok(data.particles.length > 20000);
   assert.ok(data.particles.every((dot) => dot.x < data.width && dot.y < data.height && dot.reveal <= 1));
   const groups = Array.from({ length: 5 }, (_, material) => data.particles.filter((dot) => dot.material === material));
@@ -20,44 +21,77 @@ test('loads the generated dots with valid dimensions and growth metadata', () =>
   assert.throws(() => decodeBonsai(new ArrayBuffer(20)), /particle/);
 });
 
-test('growth has a full reduced-motion state and responsive contain sizing', () => {
+test('growth has a full reduced-motion state', () => {
   assert.equal(growthProgress(0, false), 0);
   assert.equal(growthProgress(6200, false), 1);
   assert.equal(growthProgress(0, true), 1);
-  const fit = fitBonsai(1122, 1402, 320, 320, 2);
-  assert.equal(fit.pixelWidth, 640);
-  assert.equal(fit.pixelHeight, 640);
-  assert.ok(fit.scale > 0 && fit.offsetX > 0);
-  assert.equal(fit.offsetY, 0);
 });
 
-test('the Canvas component releases its loading and browser resources', () => {
-  const source = readFileSync('src/app/bonsai-canvas.ts', 'utf8');
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
-  }).outputText;
-  const removed = [];
-  const cancelled = [];
-  const media = { removeEventListener: (...args) => removed.push(args) };
+test('the original growth order sits inside the shared landscape assembly', () => {
+  assert.equal(treeArrival(0), .19);
+  assert.ok(treeArrival(.58) > .6);
+  assert.ok(treeArrival(.78) > treeArrival(.58));
+  assert.ok(treeArrival(1) < 1);
+});
+
+test('viewport sizing protects the text clearing and aligns the tree with the shore', () => {
+  for (const [width, height] of [[360, 800], [390, 844], [768, 1024], [1440, 900], [1920, 1080]]) {
+    const fit = fitBonsai(1122, 1402, width, height, 3);
+    const top = (fit.offsetY + 78 * fit.scale) / fit.pixelHeight;
+    const left = (fit.offsetX + 38 * fit.scale) / fit.pixelWidth;
+    const right = (fit.offsetX + 1089 * fit.scale) / fit.pixelWidth;
+    const bottom = (fit.offsetY + 1354 * fit.scale) / fit.pixelHeight;
+    if (width < 640) {
+      assert.ok(top >= .54 && top < .6);
+      assert.ok(left > .22 && left < .34);
+    } else if (width >= 1440) {
+      assert.ok(top > .12 && top < .18);
+      assert.ok(left > .53 && left < .63);
+    }
+    assert.ok(right > .95 && right < 1);
+    assert.ok(bottom > .9 && bottom < .95);
+    assert.equal(fit.backdrop, height > width ? 'portrait' : 'wide');
+    assert.ok(fit.pixelWidth * fit.pixelHeight <= 2_304_000);
+  }
+  const constrained = fitBonsai(1122, 1402, 390, 844, 3, true);
+  assert.equal(constrained.dpr, 1.25);
+});
+
+const compiledCanvas = ts.transpileModule(readFileSync('src/app/bonsai-canvas.ts', 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
+}).outputText;
+
+function createCanvas(motion = {}, browser = {}) {
   const angular = {
     Component: () => (component) => component,
     ViewChild: () => () => {},
-    output: () => ({ emit() {} }),
+    Input: () => () => {},
     ElementRef: class ElementRef {},
     NgZone: class NgZone {},
   };
-  angular.inject = (token) => token === angular.ElementRef ? { nativeElement: {} } : { runOutsideAngular: (run) => run() };
+  angular.inject = (token) => token === angular.ElementRef
+    ? { nativeElement: {} }
+    : { runOutsideAngular: (run) => run() };
   const module = { exports: {} };
-  runInNewContext(compiled, {
+  runInNewContext(compiledCanvas, {
     module,
     exports: module.exports,
     require: (name) => name === '@angular/core' ? angular : {},
-    window: { matchMedia: () => media },
+    window: { matchMedia: () => motion },
+    AbortController,
+    ...browser,
+  });
+  return new module.exports.BonsaiCanvas();
+}
+
+test('the Canvas component releases its loading and browser resources', () => {
+  const removed = [];
+  const cancelled = [];
+  const media = { removeEventListener: (...args) => removed.push(args) };
+  const component = createCanvas(media, {
     document: { removeEventListener: (...args) => removed.push(args) },
     cancelAnimationFrame: (frame) => cancelled.push(frame),
-    AbortController,
   });
-  const component = new module.exports.BonsaiCanvas();
   let disconnected = false;
   component.frame = 42;
   component.resizeObserver = { disconnect: () => { disconnected = true; } };
@@ -68,27 +102,32 @@ test('the Canvas component releases its loading and browser resources', () => {
   assert.deepEqual(removed.map(([event]) => event), ['visibilitychange', 'change']);
 });
 
-test('ambient particles use only foliage and low vegetation, with a sparse ground extension', () => {
-  const source = readFileSync('src/app/bonsai-canvas.ts', 'utf8');
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
-  }).outputText;
-  const angular = {
-    Component: () => (component) => component,
-    ViewChild: () => () => {},
-    output: () => ({ emit() {} }),
-    ElementRef: class ElementRef {},
-    NgZone: class NgZone {},
+test('the sampled landscape deposits each mark at its arrival and retains settled marks', () => {
+  const component = createCanvas();
+  const context = {};
+  const dots = [
+    { x: 10, y: 25, radius: 2, opacity: .8, reveal: .2 },
+    { x: 20, y: 50, radius: 3, opacity: 1, reveal: .55 },
+  ];
+  component.landscapeContext = context;
+  component.backdropAssembly = { data: { particles: dots }, next: 0, scaleX: 2, scaleY: .5, radiusScale: 1 };
+  const marks = [];
+  component.drawDot = (target, dot, x, y, opacity, radius) => {
+    assert.equal(target, context);
+    marks.push([dot, x, y, opacity, radius]);
   };
-  angular.inject = () => ({ nativeElement: {} });
-  const module = { exports: {} };
-  runInNewContext(compiled, {
-    module, exports: module.exports,
-    require: () => angular,
-    window: { matchMedia: () => ({}) },
-    AbortController,
-  });
-  const component = new module.exports.BonsaiCanvas();
+
+  component.paintBackdropUntil(.18);
+  assert.equal(marks.length, 0);
+  component.paintBackdropUntil(.22);
+  assert.deepEqual(marks, [[dots[0], 20, 12.5, .8, 2]]);
+  component.paintBackdropUntil(.6);
+  component.paintBackdropUntil(1);
+  assert.deepEqual(marks, [[dots[0], 20, 12.5, .8, 2], [dots[1], 40, 25, 1, 3]]);
+});
+
+test('ambient particles use only foliage and low vegetation, with a sparse ground extension', () => {
+  const component = createCanvas();
   const file = readFileSync('public/bonsai-particles.bin');
   const dots = decodeBonsai(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength)).particles;
   const leaves = dots.filter((dot) => component.isAnimatedLeaf(dot));
@@ -103,31 +142,11 @@ test('ambient particles use only foliage and low vegetation, with a sparse groun
 });
 
 test('falling foliage varies its timing and can drift from separate canopies together', () => {
-  const source = readFileSync('src/app/bonsai-canvas.ts', 'utf8');
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true },
-  }).outputText;
   const motion = { matches: false };
   let randomValue = .2;
   const randomMath = Object.create(Math);
   randomMath.random = () => randomValue;
-  const angular = {
-    Component: () => (component) => component,
-    ViewChild: () => () => {},
-    output: () => ({ emit() {} }),
-    ElementRef: class ElementRef {},
-    NgZone: class NgZone {},
-  };
-  angular.inject = () => ({ nativeElement: {} });
-  const module = { exports: {} };
-  runInNewContext(compiled, {
-    module, exports: module.exports,
-    require: () => angular,
-    window: { matchMedia: () => motion },
-    Math: randomMath,
-    AbortController,
-  });
-  const component = new module.exports.BonsaiCanvas();
+  const component = createCanvas(motion, { Math: randomMath });
   const leaves = [
     { x: 500, y: 400, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 },
     { x: 900, y: 350, radius: 2, material: 3, color: 'rgb(50 90 75)', opacity: 1, reveal: 1 },

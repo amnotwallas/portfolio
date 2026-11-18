@@ -12,7 +12,12 @@ export interface BonsaiParticle {
 export interface BonsaiData {
   width: number;
   height: number;
+  background: string;
   particles: BonsaiParticle[];
+}
+
+export function landscapeVariant(width: number, height: number): 'portrait' | 'wide' {
+  return width < height ? 'portrait' : 'wide';
 }
 
 export function decodeBonsai(buffer: ArrayBuffer): BonsaiData {
@@ -41,18 +46,35 @@ export function decodeBonsai(buffer: ArrayBuffer): BonsaiData {
     particles[i] = { x, y, radius, material, color: `rgb(${red} ${green} ${blue})`, opacity, reveal, lowVegetation: material === 4 && y > 1180 && y < 1320 && green > red + 3 };
   }
   particles.sort((a, b) => a.reveal - b.reveal);
-  return { width, height, particles };
+  const background = `rgb(${data.getUint8(16)} ${data.getUint8(17)} ${data.getUint8(18)})`;
+  return { width, height, background, particles };
 }
+
+export const ASSEMBLY_MS = 6200;
 
 export function growthProgress(elapsedMs: number, reducedMotion: boolean): number {
   if (reducedMotion) return 1;
-  const fraction = Math.max(0, Math.min(1, elapsedMs / 6200));
+  const fraction = Math.max(0, Math.min(1, elapsedMs / ASSEMBLY_MS));
   return fraction * fraction * (3 - 2 * fraction);
 }
 
-export function fitBonsai(width: number, height: number, cssWidth: number, cssHeight: number, dpr: number) {
+export function treeArrival(reveal: number): number {
+  return .19 + .78 * reveal;
+}
+
+export function fitBonsai(width: number, height: number, cssWidth: number, cssHeight: number, deviceScale: number, constrained = false) {
+  const compact = cssWidth < 640;
+  const tall = !compact && cssWidth / cssHeight < 1.14;
+  const maxPixels = constrained ? 1_100_000 : compact ? 1_000_000 : 2_300_000;
+  const dpr = Math.min(deviceScale, constrained ? 1.25 : compact ? 1.65 : 1.8, Math.sqrt(maxPixels / (cssWidth * cssHeight)));
   const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
   const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
-  const scale = Math.min(pixelWidth / width, pixelHeight / height);
-  return { pixelWidth, pixelHeight, scale, offsetX: (pixelWidth - width * scale) / 2, offsetY: (pixelHeight - height * scale) / 2 };
+  const shore = compact ? .935 : .916;
+  const canopy = compact ? .545 : tall ? .31 : .14;
+  const maxWidth = compact ? .94 : tall ? .58 : .55;
+  // Use the visible canopy and rock bounds to place the extracted art on the shore.
+  const scale = Math.min(pixelWidth * maxWidth / width, pixelHeight * (shore - canopy) / (height * .91));
+  const offsetX = pixelWidth * .98 - width * .97 * scale;
+  const offsetY = pixelHeight * shore - height * .966 * scale;
+  return { pixelWidth, pixelHeight, scale, offsetX, offsetY, dpr, shore, compact, backdrop: landscapeVariant(cssWidth, cssHeight) };
 }

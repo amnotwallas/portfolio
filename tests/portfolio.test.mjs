@@ -36,3 +36,14 @@ test('the initial HTML exposes the profile and contact links without JavaScript'
   assert.match(html, /href="mailto:walterardev@gmail\.com"/);
   assert.match(html, /href="https:\/\/www\.linkedin\.com\/in\/walterambriz"/);
 });
+
+test('the interface is visible independently of the forest and details open within one modal', () => {
+  const template = readFileSync('src/app/app.html', 'utf8');
+  assert.doesNotMatch(template, /treeStarted|growthStarted/);
+  assert.match(template, /\[paused\]="paused\(\)"/);
+  assert.equal((template.match(/<dialog\b/g) ?? []).length, 1);
+  assert.match(template, /aria-labelledby="details-heading"/);
+  for (const panel of ['work', 'experience', 'lab', 'contact']) {
+    assert.match(template, new RegExp(`data-panel="${panel}"`));
+  }
+});

@@ -2,57 +2,73 @@ import { Component, computed, signal, type OnDestroy } from '@angular/core';
 import { profile, translations, type Language } from './profile';
 import { BonsaiCanvas } from './bonsai-canvas';
 
+type Panel = 'work' | 'experience' | 'lab' | 'contact';
+const languageKey = 'portfolio-language';
+
+function loadLanguage(): Language {
+  try {
+    return localStorage.getItem(languageKey) === 'es' ? 'es' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
 @Component({
   selector: 'app-root',
-  styleUrl: './app.scss',
+  styleUrls: ['./app.scss', './details-dialog.scss'],
   templateUrl: './app.html',
   imports: [BonsaiCanvas],
 })
 export class App implements OnDestroy {
   protected readonly profile = profile;
-  protected readonly language = signal<Language>('en');
+  protected readonly language = signal(loadLanguage());
   protected readonly copy = computed(() => translations[this.language()]);
-  protected readonly selectedMessage = signal(0);
-  protected readonly treeStarted = signal(false);
-  protected readonly feedback = signal('');
-  private feedbackTimer?: ReturnType<typeof setTimeout>;
-  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  private readonly rotationTimer = window.setInterval(() => {
-    if (!document.hidden && !this.reducedMotion.matches) {
-      this.selectedMessage.update((index) => (index + 1) % this.copy().messages.length);
-    }
-  }, 10000);
+  protected readonly selectedMessage = signal(2);
+  protected readonly paused = signal(false);
+  protected readonly panel = signal<Panel>('work');
+  protected readonly cvFeedback = signal('');
+  protected readonly emailFeedback = signal('');
+  private panelTrigger?: HTMLElement;
+  private cvFeedbackTimer?: ReturnType<typeof setTimeout>;
+
+  constructor() {
+    document.documentElement.lang = this.language();
+  }
 
   ngOnDestroy(): void {
-    clearInterval(this.rotationTimer);
-    clearTimeout(this.feedbackTimer);
+    clearTimeout(this.cvFeedbackTimer);
   }
 
   protected setLanguage(language: Language): void {
     this.language.set(language);
     document.documentElement.lang = language;
-    this.feedback.set('');
+    this.cvFeedback.set('');
+    try {
+      localStorage.setItem(languageKey, language);
+    } catch {
+      // Language selection is also available when storage is disabled.
+    }
   }
 
-  protected selectMessage(index: number): void {
-    this.selectedMessage.set(index);
-    this.stopRotation();
+  protected openPanel(dialog: HTMLDialogElement, panel: Panel, event: Event): void {
+    this.panelTrigger = event.currentTarget as HTMLElement;
+    this.panel.set(panel);
+    this.emailFeedback.set('');
+    dialog.showModal();
+    dialog.scrollTop = 0;
   }
 
-  protected startHeroAnimation(): void {
-    this.treeStarted.set(true);
-  }
-
-  protected stopRotation(): void {
-    clearInterval(this.rotationTimer);
+  protected restoreFocus(): void {
+    this.panelTrigger?.focus({ preventScroll: true });
+    this.panelTrigger = undefined;
   }
 
   protected async copyEmail(): Promise<void> {
     try {
       await navigator.clipboard.writeText(profile.email);
-      this.showFeedback(this.copy().emailCopied);
+      this.emailFeedback.set(this.copy().emailCopied);
     } catch {
-      this.showFeedback(this.copy().emailCopyFailed);
+      this.emailFeedback.set(this.copy().emailCopyFailed);
     }
   }
 
@@ -68,14 +84,9 @@ export class App implements OnDestroy {
       link.download = 'Walter-Ambriz-CV.pdf';
       link.click();
     } catch {
-      this.showFeedback(this.copy().cvUnavailable);
+      this.cvFeedback.set(this.copy().cvUnavailable);
+      clearTimeout(this.cvFeedbackTimer);
+      this.cvFeedbackTimer = setTimeout(() => this.cvFeedback.set(''), 3500);
     }
   }
-
-  private showFeedback(message: string): void {
-    this.feedback.set(message);
-    clearTimeout(this.feedbackTimer);
-    this.feedbackTimer = setTimeout(() => this.feedback.set(''), 2600);
-  }
-
 }

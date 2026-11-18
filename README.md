@@ -1,6 +1,6 @@
 # Walter Ambriz — portfolio
 
-A single-screen personal landing page for Walter Ambriz. It introduces his backend and AI work, provides contact actions, and pairs the hero with an animated Canvas reconstruction of the original pointillist bonsai.
+A single-screen bilingual portfolio for Walter Ambriz. The interface sits over a full-viewport forest formed by Canvas 2D particles. Work, experience, lab, and contact details open in keyboard-accessible panels while the forest keeps moving.
 
 ## Stack
 
@@ -30,9 +30,11 @@ Edit `src/app/profile.ts` for the name, company, email, LinkedIn URL, CV path, a
 
 Place the finished CV at `public/cv/Walter-Ambriz-CV.pdf`. The CV control checks that a PDF exists before downloading. Until then, it shows “CV not available yet” or “CV no disponible por ahora” without navigating to a missing file.
 
-## Bonsai artwork
+## Living Forest artwork
 
-`public/bonsai.png` remains the source artwork and the fallback when Canvas or particle loading fails. The hero normally draws individual marks from the compressed `public/bonsai-particles.pack` over 6.2 seconds, then gently animates selected leaves and low vegetation with occasional one- or two-leaf falls to the rocky base. Clicking a visible branch drops up to five nearby leaves. A sparse ground scatter blends the base into the page. Above mobile widths, a soft halo behind each hero text block keeps it readable without covering the tree. Reduced-motion visitors see the completed, still tree immediately. See [the extraction guide](tools/bonsai-particles/README.md) for regeneration, format, visual comparison, and limitations.
+The original drawing in `public/bonsai.png` supplies the main tree and its branch-growth guides. Two text-free landscape plates provide the portrait and wide scenery. The same Python extractor turns the source artwork into colored points. The browser builds and caches the scenery and bonsai in Canvas, then layers moving water, reflections, mist, foliage, and the raven. The JPEG is a fallback if the Canvas or main particle asset fails.
+
+See [the artwork notes](docs/redesign/README.md) for source files and regeneration, or [the extraction guide](tools/bonsai-particles/README.md) for the binary format.
 
 ## Deploy to GitHub Pages
 
@@ -42,4 +44,4 @@ The workflow runs `npm ci`, `npm test`, and a production build before uploading 
 
 ## Accessibility and performance
 
-The page uses semantic landmarks, keyboard controls, visible focus styles, a polite live status for copy/CV feedback, and `lang` updates on language changes. The illustration is decorative and hidden from assistive technology. Motion respects `prefers-reduced-motion`.
+The profile and controls are usable during assembly. Panels restore focus on close and can scroll internally on short viewports. Desktop blur stays within the open panel. Touch layouts use an opaque paper surface. The scene respects reduced motion, pauses on request, and suspends its frame loop while the document is hidden.

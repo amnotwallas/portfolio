@@ -1,44 +1,42 @@
 :root {
-  --warm-white: #f2ede3;
-  --surface: #eef0f2;
-  --border: #d1d6dc;
-  --muted: #6b7280;
-  --graphite: #2a2e34;
-  --ink: #141618;
-  --teal: #2f5d56;
-  --teal-dark: #244a44;
-  --brick: #9a4f45;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color-scheme: light;
+  --paper: #f6f1e8;
+  --ink: #18201e;
+  --muted: #505d59;
+  --pine: #245449;
+  --line: #aebdb2;
+  --serif: Georgia, 'Times New Roman', serif;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: var(--ink);
-  background: var(--warm-white);
+  background: var(--paper);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { font: inherit; }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
-::selection { background: #bfd4cc; color: var(--ink); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--pine); outline-offset: 3px; }
+::selection { background: #d0dfd5; color: var(--ink); }
 
 .static-profile {
   max-width: 540px;
-  margin: 27vh 0 32px max(48px, 8vw);
+  max-height: 100dvh;
+  overflow: auto;
+  margin-inline: auto;
+  padding: clamp(24px, 9vh, 110px) 24px 28px;
   line-height: 1.55;
 }
-.static-profile h1 { margin: 0; font-size: clamp(48px, 6vw, 78px); font-weight: 400; }
-.static-profile h2 { font-size: clamp(24px, 2.6vw, 35px); font-weight: 300; }
+.static-profile h1 { margin: 0; font: 400 clamp(2.7rem, 6vw, 4.8rem)/1.03 var(--serif); }
+.static-profile h2 { font-size: clamp(1.25rem, 2.6vw, 1.8rem); font-weight: 400; }
 .static-profile nav { display: flex; flex-wrap: wrap; gap: 16px; }
-.static-profile a { color: var(--teal-dark); }
-
-@media (max-width: 699px) {
-  .static-profile { margin: calc(72px + clamp(160px, 24svh, 200px)) 24px 24px; }
-}
+.static-profile a { color: var(--pine); }
 
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

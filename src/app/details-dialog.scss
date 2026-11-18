@@ -1,0 +1,66 @@
+.details-dialog {
+  position: fixed;
+  inset: auto 0 0;
+  width: min(530px, calc(100vw - 28px));
+  max-height: min(76dvh, 650px);
+  margin: 0 auto max(14px, env(safe-area-inset-bottom));
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  background: #faf6edf5;
+  box-shadow: 0 16px 55px #24392c24;
+  opacity: 0;
+  transform: translateY(9px);
+  transition: opacity 190ms, transform 220ms, display 220ms allow-discrete, overlay 220ms allow-discrete;
+}
+.details-dialog[open] { opacity: 1; transform: none; }
+.details-dialog::backdrop {
+  background: #233c3320;
+  opacity: 0;
+  transition: opacity 190ms, display 220ms allow-discrete, overlay 220ms allow-discrete;
+}
+.details-dialog[open]::backdrop { opacity: 1; }
+@starting-style {
+  .details-dialog[open] { opacity: 0; transform: translateY(9px); }
+  .details-dialog[open]::backdrop { opacity: 0; }
+}
+@media (pointer: fine) {
+  @supports (backdrop-filter: blur(1px)) {
+    .details-dialog { background: #faf6eddb; backdrop-filter: blur(7px); }
+  }
+}
+.panel-surface { padding: clamp(19px, 4vw, 34px); }
+.panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.panel-heading h2, .panel-entry h3 { margin: 0; font: 400 clamp(1.65rem, 4vw, 2.35rem)/1.1 var(--serif); letter-spacing: -.04em; }
+.panel-entry { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.panel-entry h3 { font-size: 1.4rem; }
+.panel-entry p, .panel-entry ul { line-height: 1.55; }
+.panel-entry li + li { margin-top: 6px; }
+.panel-entry ul { padding-left: 19px; }
+.panel-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 7px;
+  padding: 0;
+  color: var(--pine);
+  font-size: .82rem;
+  font-weight: 500;
+  text-underline-offset: 4px;
+}
+button.panel-link { border: 0; background: none; cursor: pointer; text-decoration: underline; }
+.panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.email-feedback { color: var(--pine); font-size: .8rem; }
+.email-feedback:empty { margin: 0; }
+.email-link { font-size: 1rem; overflow-wrap: anywhere; }
+
+@media (min-width: 700px) {
+  .details-dialog {
+    inset: 0;
+    max-height: min(77dvh, 660px);
+    margin: auto max(var(--gutter), env(safe-area-inset-right)) auto auto;
+  }
+}

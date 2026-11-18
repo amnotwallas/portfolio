@@ -1,6 +1,6 @@
 # Bonsai particle extraction
 
-This utility samples the existing `public/bonsai.png` into real Canvas marks. It does not invent a new tree. Export writes both the readable `.bin` source and a deterministic gzip `.pack` file used by the site to reduce transfer size. Use Python 3.12+ and `uv`:
+This utility samples source artwork into Canvas marks. Bonsai mode retains the original tree’s branch and canopy guides. Landscape mode samples sky color from the top of the image and preserves faint distant colors. Export writes both the readable `.bin` source and a deterministic gzip `.pack` file used by the site to reduce transfer size. Use Python 3.12+ and `uv`:
 
 ```bash
 uv lock --directory tools/bonsai-particles
@@ -9,7 +9,7 @@ uv run --directory tools/bonsai-particles bonsai-particles ../../public/bonsai.p
 uv run --directory tools/bonsai-particles pytest -q
 ```
 
-The source is 1122×1402 RGB. Its border median is `(249, 248, 244)`, and the border varies by a few RGB levels. Pixels less than 20 levels from that estimate are treated as background. Each occupied 4×4 source region contributes one mark: its weighted center, approximate area-derived radius, and color weighted toward its darker pixels. A fixed spatial offset breaks up a visible sampling grid. This yields roughly 29,000 marks and a 350 KB binary asset; gzip reduces the downloaded asset to about 264 KB. Re-running extraction is deterministic, and the test compares the committed binary with a fresh extraction.
+The source is 1122×1402 RGB. Its border median is `(249, 248, 244)`, and the border varies by a few RGB levels. Pixels less than 20 levels from that estimate are treated as background. Each occupied 4×4 source region contributes one mark: its weighted center, approximate area-derived radius, and color weighted toward its darker pixels. A deterministic offset scatters centers within each region. Landscape mode uses 3×3 source regions because its marks span the full viewport. This yields roughly 29,000 marks and a 350 KB binary asset; gzip reduces the downloaded asset to about 264 KB. Re-running extraction is deterministic, and the test compares the committed binary with a fresh extraction.
 
 ## Materials and growth
 
@@ -21,9 +21,9 @@ All values are little-endian. The 20-byte header contains `BSP1`, width, height,
 
 ## Renderer
 
-`src/app/bonsai-canvas.ts` loads the compressed binary once, decompresses it with the browser's `DecompressionStream`, and draws each mark with `CanvasRenderingContext2D.arc()`. The `.pack` extension keeps static servers from transparently decompressing the asset before the app does. An offscreen Canvas accumulates static marks as their reveal time arrives. A small deterministic foliage subset is drawn in the foreground with a subpixel sway and slight opacity change. The 6.2-second growth timeline eases from the root through trunk, branches, leaves, and ground. `ResizeObserver` recalculates contain scaling, and device pixel ratio is capped at 2. Animation pauses while the page is hidden. Clicking a visible branch releases up to five nearby leaves. On destroy, it aborts loading and releases the observer, listeners, and animation frame. Fetch or Canvas failure shows the original PNG.
+`src/app/bonsai-canvas.ts` loads the original bonsai and one compressed landscape pack. Both join a shared assembly timeline and use the same point renderer. Once marks settle, cached Canvas layers supply the scene for moving water, foliage, atmosphere, and the raven. Reduced motion paints the assembled state immediately. The optional landscape pack falls back to procedural stippling, and the original JPEG preserves the silhouette if Canvas or bonsai loading fails.
 
-The final grounding pass lowers only the artwork. It reuses 86 source ground marks as a faint scatter below the base, and redraws 130 existing green base marks with tiny dotted grass tips and a slow cluster breeze. About 638 canopy marks sway independently in similarly small groups. Each fall draws one or, occasionally, two existing foliage marks from widely separated canopy areas. Timing, source, and drift vary per fall; a quiet pause follows each one. These counts come from the current deterministic particle asset; trunk and wood remain on the static layer. Reduced motion removes the sway, breathing, and falling marks while preserving the completed art.
+See [the artwork notes](../../docs/redesign/README.md) for the landscape source and rebuild commands.
 
 ## Visual QA
 
