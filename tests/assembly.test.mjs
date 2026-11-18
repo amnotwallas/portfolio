@@ -15,10 +15,10 @@ test('the scene assigns overlapping roles with ordered destination waves', () =>
   ];
   const water = { cascades: [{ top: [.26, .7], foot: [.24, .85], width: .12 }], shoreline: .93 };
   const plan = scheduleAssembly({ width: 100, height: 100, background: '#f5efe5', particles: scenery }, water);
-  assert.deepEqual(plan.particles.map((mark) => mark.swarm), ['structure', 'foliage', 'water', 'atmosphere', 'detail']);
+  assert.deepEqual(new Set(plan.particles.map((mark) => mark.swarm)), new Set(['structure', 'foliage', 'water', 'atmosphere', 'detail']));
   assert.equal(new Set(plan.particles.map(({ x, y, color }) => JSON.stringify([x, y, color]))).size, 5);
   assert.ok(plan.particles.every((mark, i, marks) => i === 0 || mark.reveal > marks[i - 1].reveal));
-  assert.ok(swarmWeight('water', .55) === 0 && swarmWeight('water', .86) === 1);
+  assert.ok(swarmWeight('water', .29) === 0 && swarmWeight('water', .55) > .6 && swarmWeight('water', .67) === 1);
   assert.ok(swarmWeight('atmosphere', .74) === 0 && swarmWeight('atmosphere', 1) === 1);
 });
 
@@ -46,5 +46,22 @@ test('courier budgets and repeatable routes retain each role at mobile sizes', (
     assert.ok(members.every(({ dot: mark }) => mark.reveal > 0 && mark.reveal <= 1));
     assert.ok(members.every((mark, i) => i === 0 || mark.dot.reveal >= members[i - 1].dot.reveal));
     assert.ok(duration > .1 && duration < .4);
+  }
+});
+
+test('water meets the neighboring land without a jump in deposit time', () => {
+  const layout = { cascades: [{ top: [.26, .7], foot: [.24, .85], width: .12 }], shoreline: .93 };
+  const neighbors = [
+    [[31.9, 80], [32.1, 80]],
+    [[26, 69.9], [26, 70.1]],
+    [[50, 92.9], [50, 93.1]],
+  ];
+  for (const [a, b] of neighbors) {
+    const particles = [a, b].map(([x, y]) => dot(x, y, 4, 'rgb(96 108 92)'));
+    const { particles: planned } = scheduleAssembly({ width: 100, height: 100, background: '', particles }, layout);
+    assert.ok(planned.some((mark) => mark.swarm === 'water'));
+    assert.ok(planned.some((mark) => mark.swarm !== 'water'));
+    assert.ok(planned[1].reveal - planned[0].reveal < .13, 'the motion lane should not gate deposition');
+    assert.ok(planned.every((mark) => mark.reveal < .58));
   }
 });

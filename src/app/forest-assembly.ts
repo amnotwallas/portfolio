@@ -2,15 +2,16 @@ import type { BonsaiData, BonsaiParticle } from './bonsai-data';
 import type { WaterLayout } from './landscape';
 
 const swarms = {
-  structure: { first: .13, last: .48, duration: .22, share: 32 },
-  foliage: { first: .33, last: .73, duration: .25, share: 29 },
-  water: { first: .59, last: .85, duration: .20, share: 17 },
-  atmosphere: { first: .59, last: .94, duration: .30, share: 14 },
-  detail: { first: .78, last: .99, duration: .16, share: 8 },
+  structure: { duration: .22, share: 32 },
+  foliage: { duration: .25, share: 29 },
+  water: { duration: .20, share: 17 },
+  atmosphere: { duration: .30, share: 14 },
+  detail: { duration: .16, share: 8 },
 };
 
 type Swarm = keyof typeof swarms;
 const roles = Object.keys(swarms) as Swarm[];
+const treeWindows = { structure: [.13, .48], foliage: [.33, .73], detail: [.78, .99] } as const;
 
 export type AssemblyDot = BonsaiParticle & { swarm: Swarm };
 export type AssemblyData = BonsaiData & { particles: AssemblyDot[] };
@@ -34,7 +35,7 @@ export function variation(key: number): number {
 
 export function swarmWeight(swarm: 'water' | 'atmosphere', progress: number): number {
   return swarm === 'water'
-    ? ease(clamp((progress - .6) / .23))
+    ? ease(clamp((progress - .3) / .36))
     : ease(clamp((progress - .75) / .24));
 }
 
@@ -56,15 +57,12 @@ function pigment(color: string): Swarm {
   return 'structure';
 }
 
-function wave(swarm: Swarm, dot: BonsaiParticle, x: number, y: number, plate: boolean): number {
+function treeWave(swarm: keyof typeof treeWindows, dot: BonsaiParticle, x: number): number {
   const neighborhood = .12 * Math.sin(x * Math.PI * 4) + .1 * x;
   switch (swarm) {
     case 'structure':
-      if (plate) return .68 * (1 - y) + neighborhood + .1 * dot.reveal;
       return dot.material === 4 ? .08 + .48 * (dot.reveal - .78) / .18 + neighborhood : dot.reveal / .8;
-    case 'foliage': return plate ? .33 + .25 * (1 - y) + neighborhood + .25 * dot.reveal : (dot.reveal - .54) / .32;
-    case 'water': return .12 + .67 * (y - .64) / .36 + .2 * x;
-    case 'atmosphere': return .14 + .51 * x + .22 * (1 - y);
+    case 'foliage': return (dot.reveal - .54) / .32;
     case 'detail': return .32 + neighborhood + .36 * dot.reveal;
   }
 }
@@ -74,27 +72,27 @@ export function scheduleAssembly(data: BonsaiData, layout?: WaterLayout): Assemb
   const particles = data.particles.map((dot): AssemblyDot => {
     const x = dot.x / data.width;
     const y = dot.y / data.height;
-    let swarm: Swarm;
+    const grain = variation(Math.round(dot.x * 103 + dot.y * 199)) - .5;
     if (layout) {
-      if (y >= layout.shoreline || cascadeAt(layout, x, y)) {
-        swarm = 'water';
-      } else {
-        let tone = colors.get(dot.color);
-        if (!tone) {
-          tone = pigment(dot.color);
-          colors.set(dot.color, tone);
-        }
-        swarm = tone;
+      let tone = colors.get(dot.color);
+      if (!tone) {
+        tone = pigment(dot.color);
+        colors.set(dot.color, tone);
       }
-    } else if (dot.lowVegetation || dot.material === 3) {
+      const swarm = y >= layout.shoreline || cascadeAt(layout, x, y) ? 'water' : tone;
+      // Water lanes guide motion without cutting holes in the shared deposition wave.
+      const drift = .027 * Math.sin((x * .8 + y * .38) * Math.PI * 2);
+      const reveal = clamp(.24 + .29 * (1 - y) + drift + .32 * dot.reveal + .12 * grain);
+      return { ...dot, reveal, swarm };
+    }
+
+    let swarm: keyof typeof treeWindows = 'structure';
+    if (dot.lowVegetation || dot.material === 3) {
       swarm = dot.material === 3 && dot.reveal > .72 && pigment(dot.color) === 'detail'
         ? 'detail' : 'foliage';
-    } else {
-      swarm = 'structure';
     }
-    const { first, last } = swarms[swarm];
-    const stagger = .13 * (variation(Math.round(dot.x * 103 + dot.y * 199)) - .5);
-    const reveal = first + (last - first) * clamp(wave(swarm, dot, x, y, !!layout) + stagger);
+    const [first, last] = treeWindows[swarm];
+    const reveal = first + (last - first) * clamp(treeWave(swarm, dot, x) + .13 * grain);
     return { ...dot, reveal, swarm };
   });
   particles.sort((a, b) => a.reveal - b.reveal);
