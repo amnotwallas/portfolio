@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { paintLandscape, paintLandscapeMotion } from '../src/app/landscape.ts';
+import { illustratedWater, paintLandscape, paintLandscapeMotion, waterlineAt } from '../src/app/landscape.ts';
 
 test('landscape marks are reproducible while the water and mist move within a bounded frame budget', () => {
   class RecordedPath {
@@ -91,5 +91,50 @@ test('landscape marks are reproducible while the water and mist move within a bo
     assert.equal(observe(paintLandscapeMotion, 16000, 'portrait').rings, 0);
   } finally {
     globalThis.Path2D = path;
+  }
+});
+
+test('illustrated flow uses distinct strand widths and stays between sill rocks', () => {
+  for (const [layout, width, height, sill, islands] of [
+    ['wide', 1672, 941, 836, [[754, 774], [853, 890]]],
+    ['portrait', 863, 1823, 1630, [[146, 164], [233, 255]]],
+  ]) {
+    const widths = new Set();
+    const upper = [];
+    const lower = [];
+    const foam = new Set();
+    const ripples = [];
+    const points = [];
+    const ctx = {
+      save() {}, restore() {}, beginPath() { points.length = 0; },
+      moveTo(x, y) { points.push([x, y]); },
+      quadraticCurveTo(_cx, _cy, x, y) { points.push([x, y]); },
+      arc() {}, fill() {},
+      fillRect(x, y, length) { ripples.push({ x, y, length }); },
+      stroke() {
+        if (this.strokeStyle === '#fff8e5') {
+          foam.add(Math.round((points[0][0] + points[1][0]) / 2));
+          return;
+        }
+        if (!['#fffbee', '#80a29a'].includes(this.strokeStyle) || this.globalAlpha < .04) return;
+        widths.add(this.lineWidth);
+        for (const spot of points) (spot[1] >= sill ? lower : upper).push(spot);
+      },
+    };
+    for (let elapsed = 0; elapsed < 2300; elapsed += 41) {
+      paintLandscapeMotion(ctx, width, height, layout === 'portrait', elapsed, layout, 1, 0);
+    }
+    assert.ok(widths.size >= 3, 'strands should have independent widths');
+    assert.ok(upper.length > 60 && lower.length > 60);
+    for (const [x, y] of lower) {
+      assert.ok(y <= (layout === 'portrait' ? 1678 : 864));
+      assert.ok(islands.every(([left, right]) => x <= left || x >= right), `stream crosses a ${layout} sill rock at ${x},${y}`);
+    }
+    const [left, right] = layout === 'wide' ? [274, 1574] : [126, 813];
+    const art = illustratedWater[layout];
+    assert.ok(ripples.length > 0 && ripples.every(({ x, y, length }) =>
+      x >= left && x + length <= right && y >= waterlineAt(art, x) && y >= waterlineAt(art, x + length)
+    ));
+    assert.deepEqual([...foam], art.falls.flatMap((fall) => fall.foam.map(([x]) => x)));
   }
 });

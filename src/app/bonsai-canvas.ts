@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, ViewChild, inject } from '@angular/core';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress, landscapeVariant, type BonsaiData, type BonsaiParticle } from './bonsai-data';
-import { createAtmosphereStamps, paintLandscape, paintLandscapeMotion, sampledWater } from './landscape';
+import { createAtmosphereStamps, illustratedWater, paintLandscape, paintLandscapeMotion, sampledWater, waterlineAt } from './landscape';
 import { buildCouriers, ease, scheduleAssembly, swarmWeight, variation, type AssemblyData, type Lane } from './forest-assembly';
 
 type BirdDot = { x: number; y: number; radius: number };
@@ -361,7 +361,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     }
     context.drawImage(this.landscape, 0, 0);
     context.globalAlpha = 1;
-    if (water) this.drawReflection(context, pixelWidth, pixelHeight, shore, water);
+    if (water) this.drawReflection(context, pixelWidth, pixelHeight, shore, water, this.backdropAssembly ? backdrop : undefined);
     if ((water || atmosphere) && !instant) {
       context.setTransform(pixelWidth / this.viewportWidth, 0, 0, pixelHeight / this.viewportHeight, 0, 0);
       paintLandscapeMotion(context, this.viewportWidth, this.viewportHeight, compact, elapsed,
@@ -446,12 +446,31 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     }
   }
 
-  private drawReflection(context: CanvasRenderingContext2D, width: number, height: number, shore: number, gain: number): void {
+  private drawReflection(
+    context: CanvasRenderingContext2D, width: number, height: number, shore: number, gain: number, backdrop?: Backdrop,
+  ): void {
     if (!this.layer) return;
-    const edge = Math.round(height * shore);
+    const art = backdrop ? illustratedWater[backdrop] : undefined;
+    const edge = Math.round(height * (art ? waterlineAt(art, art.reflectionX) / art.height : shore));
     const compression = .38;
     const strip = Math.min(edge, Math.ceil((height - edge) / compression));
     context.save();
+    if (art) {
+      const scaleX = width / art.width;
+      const scaleY = height / art.height;
+      const first = art.bank[0];
+      const last = art.bank[art.bank.length - 1];
+      context.beginPath();
+      context.moveTo(first[0] * scaleX, first[1] * scaleY);
+      for (let i = 1; i < art.bank.length; i++) {
+        const [x, y] = art.bank[i];
+        context.lineTo(x * scaleX, y * scaleY);
+      }
+      context.lineTo(last[0] * scaleX, height);
+      context.lineTo(first[0] * scaleX, height);
+      context.closePath();
+      context.clip();
+    }
     context.globalAlpha = gain * .116;
     context.translate(0, edge);
     context.scale(1, -compression);

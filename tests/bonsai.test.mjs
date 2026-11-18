@@ -4,6 +4,7 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress } from '../src/app/bonsai-data.ts';
+import { illustratedWater, waterlineAt } from '../src/app/landscape.ts';
 
 test('loads the generated dots with valid dimensions and growth metadata', () => {
   const file = readFileSync('public/bonsai-particles.bin');
@@ -69,7 +70,7 @@ function createCanvas(motion = {}, browser = {}) {
   runInNewContext(compiledCanvas, {
     module,
     exports: module.exports,
-    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS },
+    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS, illustratedWater, waterlineAt },
     window: { matchMedia: () => motion },
     AbortController,
     cancelAnimationFrame() {},
@@ -118,6 +119,29 @@ test('the sampled landscape deposits each mark at its arrival and retains settle
   component.paintBackdropUntil(.6);
   component.paintBackdropUntil(1);
   assert.deepEqual(marks, [[dots[0], 20, 12.5, .8, 2], [dots[1], 40, 25, 1, 3]]);
+});
+
+test('the reflection mirrors at the local waterline and clips to the illustrated pond', () => {
+  const component = createCanvas();
+  component.layer = {};
+  for (const [layout, width, height] of [['wide', 1440, 900], ['portrait', 390, 844]]) {
+    const points = [];
+    const operations = [];
+    const ctx = {
+      save() {}, restore() {}, beginPath() {}, closePath() {}, scale() {},
+      moveTo(x, y) { points.push([x, y]); },
+      lineTo(x, y) { points.push([x, y]); },
+      clip() { operations.push('clip'); },
+      translate(_x, y) { operations.push(y); },
+      drawImage() { operations.push('draw'); },
+    };
+    const art = illustratedWater[layout];
+    const edge = Math.round(waterlineAt(art, art.reflectionX) / art.height * height);
+    component.drawReflection(ctx, width, height, .916, 1, layout);
+    assert.deepEqual(operations, ['clip', edge, 'draw']);
+    assert.deepEqual(points.slice(0, art.bank.length), art.bank.map(([x, y]) => [x * (width / art.width), y * (height / art.height)]));
+    assert.ok(points.slice(-2).every((point) => point[1] === height));
+  }
 });
 
 test('ambient particles use only foliage and low vegetation, with a sparse ground extension', () => {

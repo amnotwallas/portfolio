@@ -35,7 +35,7 @@ const wideFalls: Cascade[] = [
   { top: [.557, .676], foot: [.522, .828], width: .09 },
   { top: [.499, .884], foot: [.49, .93], width: .145 },
 ];
-// Match the glints to the waterfall lips and splash pools in each sampled backdrop.
+// Broad bounds for assembly couriers. Settled water follows the traced artwork below.
 export const sampledWater = {
   portrait: {
     cascades: [
@@ -52,6 +52,74 @@ export const sampledWater = {
     shoreline: .933,
   },
 };
+
+type Strand = readonly [lipX: number, lipY: number, bendX: number, bendY: number, footX: number, footY: number];
+type Waterfall = { strands: readonly Strand[]; foam: readonly Coordinate[] };
+type WaterArt = {
+  width: number; height: number; bank: readonly Coordinate[]; reflectionX: number; falls: readonly Waterfall[];
+};
+
+// Source pixels from landscape-wide.webp and landscape-portrait.webp.
+export const illustratedWater = {
+  wide: {
+    width: 1672, height: 941, reflectionX: 1400,
+    bank: [[274, 894], [494, 872], [684, 871], [930, 874], [1240, 880], [1455, 878], [1574, 888]],
+    falls: [
+      {
+        strands: [
+          [889, 651, 863, 663, 852, 758], [901, 650, 869, 673, 874, 764],
+          [938, 649, 916, 669, 912, 769], [945, 641, 916, 663, 916, 755],
+          [960, 638, 941, 662, 942, 750], [991, 633, 955, 649, 955, 729],
+        ],
+        foam: [[863, 773], [890, 783], [922, 772]],
+      },
+      {
+        strands: [
+          [723, 839, 713, 844, 712, 862], [745, 837, 736, 846, 735, 861],
+          [799, 838, 793, 846, 790, 862], [822, 837, 814, 846, 810, 863],
+          [831, 838, 821, 846, 821, 862], [901, 837, 911, 845, 911, 861],
+          [927, 837, 938, 845, 934, 861], [960, 837, 957, 847, 951, 862],
+        ],
+        foam: [[714, 865], [804, 865], [928, 864]],
+      },
+    ],
+  },
+  portrait: {
+    width: 863, height: 1823, reflectionX: 630,
+    bank: [[126, 1759], [193, 1698], [300, 1698], [437, 1722], [610, 1720], [742, 1714], [813, 1711]],
+    falls: [
+      {
+        strands: [
+          [162, 1430, 153, 1440, 133, 1529], [177, 1425, 159, 1439, 151, 1550],
+          [202, 1420, 202, 1442, 183, 1558], [219, 1414, 197, 1432, 189, 1553],
+          [227, 1410, 202, 1432, 204, 1539], [245, 1407, 235, 1426, 224, 1525],
+        ],
+        foam: [[141, 1548], [173, 1570], [197, 1557]],
+      },
+      {
+        strands: [
+          [108, 1636, 96, 1646, 99, 1673], [129, 1634, 120, 1648, 119, 1676],
+          [183, 1633, 167, 1653, 174, 1676], [199, 1633, 188, 1646, 186, 1677],
+          [222, 1634, 217, 1645, 210, 1676], [266, 1634, 279, 1645, 274, 1675],
+          [279, 1633, 289, 1644, 288, 1675], [297, 1633, 301, 1649, 297, 1676],
+        ],
+        foam: [[111, 1679], [187, 1679], [286, 1680]],
+      },
+    ],
+  },
+} satisfies Record<keyof typeof sampledWater, WaterArt>;
+
+export function waterlineAt(art: WaterArt, x: number): number {
+  const points = art.bank;
+  if (x <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) {
+    const [right, depth] = points[i];
+    if (x > right) continue;
+    const [left, start] = points[i - 1];
+    return start + (depth - start) * (x - left) / (right - left);
+  }
+  return points[points.length - 1][1];
+}
 
 function rng(seed: number): () => number {
   return () => {
@@ -476,6 +544,84 @@ function paintFallStreams(
   }
 }
 
+function strandAxis(start: number, bend: number, foot: number, t: number): number {
+  const rest = 1 - t;
+  return rest * rest * start + 2 * rest * t * bend + t * t * foot;
+}
+
+function paintIllustratedFall(
+  ctx: CanvasRenderingContext2D, fall: Waterfall, scaleX: number, scaleY: number,
+  compact: boolean, elapsed: number, gain: number, phase: number,
+): void {
+  const count = compact ? Math.min(5, fall.strands.length) : fall.strands.length;
+  const period = 1110 + phase * 137;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < count; i++) {
+    const strand = Math.floor((i + .5) * fall.strands.length / count);
+    const [ax, ay, bx, by, cx, cy] = fall.strands[strand];
+    const cycle = (elapsed / (period + strand % 4 * 103 + strand * 17) + strand * .287 + phase) % 1;
+    const head = cycle * (.64 + .36 * cycle);
+    const tail = Math.max(0, head - (.095 + strand % 3 * .026));
+    const x = strandAxis(ax, bx, cx, tail);
+    const y = strandAxis(ay, by, cy, tail);
+    const span = head - tail;
+    const contrast = strand % 4 === 1;
+    ctx.strokeStyle = contrast ? '#80a29a' : '#fffbee';
+    ctx.lineWidth = (compact ? .71 : .97) * (1 + (strand % 3) * .18);
+    ctx.globalAlpha = gain * (contrast ? .34 : .75) * Math.min(1, cycle * 11, (1 - cycle) * 9);
+    ctx.beginPath();
+    ctx.moveTo(x * scaleX, y * scaleY);
+    ctx.quadraticCurveTo(
+      (x + span * ((1 - tail) * (bx - ax) + tail * (cx - bx))) * scaleX,
+      (y + span * ((1 - tail) * (by - ay) + tail * (cy - by))) * scaleY,
+      strandAxis(ax, bx, cx, head) * scaleX, strandAxis(ay, by, cy, head) * scaleY,
+    );
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#fffbedbc';
+  ctx.globalAlpha = gain * .83;
+  ctx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const [ax, ay, bx, by, cx, cy] = fall.strands[Math.floor((i + .5) * fall.strands.length / count)];
+    const cycle = (elapsed / (1670 + i * 173) + i * .381 + phase) % 1;
+    const head = cycle * (.64 + .36 * cycle);
+    for (let j = 0; j < 3; j++) {
+      const t = Math.max(0, head - j * .012);
+      const x = strandAxis(ax, bx, cx, t) * scaleX;
+      const y = strandAxis(ay, by, cy, t) * scaleY;
+      const radius = (.65 - j * .12) * Math.min(1, t * 11, (1 - t) * 13);
+      ctx.moveTo(x + radius, y);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+    }
+  }
+  for (let i = 0; i < fall.foam.length; i++) {
+    const [x, y] = fall.foam[i];
+    const age = (elapsed / (870 + i * 129) + i * .318 + phase) % 1;
+    const px = x * scaleX + (i - 1) * (age * 4 + 1);
+    const py = y * scaleY - 3.4 * Math.sin(age * Math.PI);
+    const radius = .66 * Math.sin(age * Math.PI);
+    ctx.moveTo(px + radius, py);
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = '#fff8e5';
+  ctx.lineWidth = .65;
+  for (let i = 0; i < fall.foam.length; i++) {
+    const [x, y] = fall.foam[i];
+    const age = (elapsed / (1170 + i * 133) + phase + i * .31) % 1;
+    const px = x * scaleX;
+    const py = y * scaleY + age * 1.8;
+    const reach = Math.min(16, (5 + age * 12) * scaleX);
+    ctx.globalAlpha = gain * .52 * Math.sin(Math.PI * age);
+    ctx.beginPath();
+    ctx.moveTo(px - reach, py);
+    ctx.quadraticCurveTo(px, py + .85, px + reach, py);
+    ctx.stroke();
+  }
+}
+
 const fishMarks = [
   [-8, -2.6, .95], [-7, -1.2, .9], [-7, 1.2, .85], [-8, 2.5, .7], [-5.5, 0, 1],
   [-3.6, -.8, 1.2], [-3.2, 1, 1.1], [-1.8, -2, 1.1], [-1.1, .1, 1.6],
@@ -536,10 +682,15 @@ export function paintLandscapeMotion(
   if (width <= 0 || height <= 0) return;
   ctx.save();
   const water = backdrop ? sampledWater[backdrop] : undefined;
+  const art = backdrop ? illustratedWater[backdrop] : undefined;
   const cascades = water?.cascades ?? (compact ? compactFalls : wideFalls);
   for (let index = 0; waterGain && index < cascades.length; index++) {
     const cascade = cascades[index];
     const phase = index === 0 ? 0 : .47;
+    if (art) {
+      paintIllustratedFall(ctx, art.falls[index], width / art.width, height / art.height, compact, elapsed, waterGain, phase);
+      continue;
+    }
     paintFallStreams(ctx, cascade, width, height, compact, elapsed, waterGain, phase);
     const fallWidth = cascade.width * width;
     const vertical = (cascade.foot[1] - cascade.top[1]) * height;
@@ -565,11 +716,20 @@ export function paintLandscapeMotion(
   }
 
   const shoreline = water?.shoreline ?? (compact ? .943 : .927);
+  const leftBank = art ? art.bank[0][0] / art.width * width : 0;
+  const rightBank = art ? art.bank[art.bank.length - 1][0] / art.width * width : width;
   for (let i = 0; waterGain && i < (compact ? 13 : 25); i++) {
     const wave = .5 + .5 * Math.sin(elapsed / (1075 + i * 39) + i * 4.01);
-    const left = ((i * .61803) % 1) * width + wave * 2.3 - 2;
-    const y = height * (shoreline + ((i * .30227) % 1) * (1 - shoreline)) + wave * .65;
     const length = (5 + i % 7 * 7) * (.5 + wave * .6);
+    const reach = length * 1.24 + 2.5;
+    const left = art
+      ? leftBank + ((i * .61803) % 1) * Math.max(0, rightBank - leftBank - reach - 2.3) + wave * 2.3
+      : ((i * .61803) % 1) * width + wave * 2.3 - 2;
+    if (art && left + reach > rightBank) continue;
+    const bank = art
+      ? Math.max(waterlineAt(art, left / width * art.width), waterlineAt(art, (left + reach) / width * art.width)) / art.height
+      : shoreline;
+    const y = height * (bank + ((i * .30227) % 1) * (1 - bank)) + wave * .65;
     ctx.fillStyle = i % 3 ? '#fff5d8' : '#557c6b';
     ctx.globalAlpha = waterGain * (.08 + wave * wave * .31);
     ctx.fillRect(left, y, length, .8);
@@ -581,8 +741,9 @@ export function paintLandscapeMotion(
   if (stamps?.mist && mistGain) {
     const waterfall = cascades[0];
     const drift = Math.sin(elapsed / 4800);
-    const cx = width * waterfall.foot[0] + drift * (compact ? 3 : 8);
-    const cy = height * waterfall.foot[1] + 3 * Math.sin(elapsed / 3700);
+    const impact = art?.falls[0].foam[1];
+    const cx = width * (art && impact ? impact[0] / art.width : waterfall.foot[0]) + drift * (compact ? 3 : 8);
+    const cy = height * (art && impact ? impact[1] / art.height : waterfall.foot[1]) + 3 * Math.sin(elapsed / 3700);
     const radius = width * (compact ? .2 : .12);
     ctx.globalAlpha = mistGain * (.23 + .06 * drift);
     ctx.drawImage(stamps.mist, cx - radius, cy - radius * .3, radius * 2, radius * .6);
