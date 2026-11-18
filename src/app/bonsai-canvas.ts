@@ -48,6 +48,7 @@ const birdFeet: BirdDot[] = [
   { x: -5, y: 11, radius: 1.3 }, { x: -5, y: 15, radius: 1.3 }, { x: -5, y: 19, radius: 1.3 }, { x: -9, y: 20, radius: 1.2 },
   { x: 7, y: 11, radius: 1.3 }, { x: 7, y: 15, radius: 1.3 }, { x: 7, y: 19, radius: 1.3 }, { x: 3, y: 20, radius: 1.2 },
 ];
+const birdPaths = new WeakMap<readonly BirdDot[], Path2D>();
 
 @Component({
   selector: 'app-bonsai-canvas',
@@ -233,7 +234,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
         x: dot.x * pixelWidth / data.width,
         y: dot.y * pixelHeight / data.height,
         radius: dot.radius * radiusScale * this.view!.dpr,
-      }), sampledWater[backdrop]);
+      }), sampledWater[backdrop], illustratedWater[backdrop]);
     }
     this.paintBackdropUntil(this.progress);
   }
@@ -649,14 +650,18 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     context.restore();
   }
 
-  private drawBirdDots(context: CanvasRenderingContext2D, dots: BirdDot[], color: string): void {
-    context.fillStyle = color;
-    context.beginPath();
-    for (const dot of dots) {
-      context.moveTo(dot.x + dot.radius, dot.y);
-      context.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+  private drawBirdDots(context: CanvasRenderingContext2D, dots: readonly BirdDot[], color: string): void {
+    let path = birdPaths.get(dots);
+    if (!path) {
+      path = new Path2D();
+      for (const dot of dots) {
+        path.moveTo(dot.x + dot.radius, dot.y);
+        path.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+      }
+      birdPaths.set(dots, path);
     }
-    context.fill();
+    context.fillStyle = color;
+    context.fill(path);
   }
 
   private isAnimatedLeaf(dot: BonsaiParticle): boolean {

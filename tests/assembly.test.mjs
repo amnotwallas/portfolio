@@ -65,3 +65,47 @@ test('water meets the neighboring land without a jump in deposit time', () => {
     assert.ok(planned.every((mark) => mark.reveal < .58));
   }
 });
+
+test('assembly reserves separate fronts for each fall despite a large pool population', () => {
+  const layout = {
+    cascades: [
+      { top: [.4, .5], foot: [.35, .7], width: .07 },
+      { top: [.32, .78], foot: [.31, .86], width: .10 },
+    ],
+    shoreline: .92,
+  };
+  const art = {
+    width: 100, height: 100,
+    falls: [
+      { strands: [[40, 50, 36, 56, 35, 70]] },
+      { strands: [[32, 78, 32, 81, 31, 86]] },
+    ],
+  };
+  const marks = [
+    ...Array.from({ length: 1000 }, (_, i) => dot(20 + i % 60, 94, 4, 'rgb(96 108 92)', i / 1000)),
+    ...Array.from({ length: 20 }, (_, i) => dot(36, 60 + i % 2, 4, 'rgb(125 152 133)', i / 20)),
+    ...Array.from({ length: 20 }, (_, i) => dot(32, 83 + i % 2, 4, 'rgb(125 152 133)', i / 20)),
+  ];
+  const { particles } = scheduleAssembly({ width: 100, height: 100, background: '', particles: marks }, layout);
+  const lanes = buildCouriers(particles, 100, 100, 18, (p) => p, layout, art);
+  const upper = lanes.flatMap((lane) => lane.members).filter((p) => p.y < 75);
+  const lower = lanes.flatMap((lane) => lane.members).filter((p) => p.y >= 75 && p.y < 90);
+  assert.ok(upper.length >= 5 && lower.length >= 5);
+  assert.ok(upper.every((p) => p.fromY <= p.bendY && p.bendY < p.y && p.fromX >= 40));
+  assert.ok(lower.every((p) => p.fromY <= p.bendY && p.bendY < p.y && p.fromX >= 32));
+  assert.ok(lanes.reduce((total, lane) => total + lane.members.length, 0) <= 18);
+});
+
+test('foliage paths approach from the supporting branch before spreading into the crown', () => {
+  const marks = [
+    { ...dot(20, 65, 0, 'rgb(80 60 40)', .16), swarm: 'structure' },
+    { ...dot(60, 31, 1, 'rgb(80 60 40)', .3), swarm: 'structure' },
+    ...Array.from({ length: 20 }, (_, i) => ({
+      ...dot(76 + i % 4, 26, 3, 'rgb(70 110 80)', .45 + i*.007), swarm: 'foliage',
+    })),
+  ];
+  const foliage = buildCouriers(marks, 100, 100, 24, (p) => p)
+    .filter((lane) => lane.swarm === 'foliage').flatMap((lane) => lane.members);
+  assert.ok(foliage.length > 0);
+  assert.ok(foliage.every((p) => p.fromX < 60 && p.bendX < p.x && p.bendY >= p.y));
+});

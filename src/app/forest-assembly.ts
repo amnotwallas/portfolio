@@ -1,5 +1,5 @@
 import type { BonsaiData, BonsaiParticle } from './bonsai-data';
-import type { WaterLayout } from './landscape';
+import type { illustratedWater, WaterLayout } from './landscape';
 
 const swarms = {
   structure: { duration: .22, share: 32 },
@@ -16,6 +16,8 @@ const treeWindows = { structure: [.13, .48], foliage: [.33, .73], detail: [.78, 
 export type AssemblyDot = BonsaiParticle & { swarm: Swarm };
 export type AssemblyData = BonsaiData & { particles: AssemblyDot[] };
 type Point = { x: number; y: number; radius: number };
+type WaterArt = Pick<(typeof illustratedWater)[keyof typeof illustratedWater], 'width' | 'height' | 'falls'>;
+type Front = { dots: AssemblyDot[]; fall: number };
 export type Courier = Point & {
   dot: AssemblyDot;
   fromX: number;
@@ -101,37 +103,140 @@ export function scheduleAssembly(data: BonsaiData, layout?: WaterLayout): Assemb
 
 export function buildCouriers(
   dots: AssemblyDot[], width: number, height: number, budget: number,
-  project: (dot: AssemblyDot) => Point, layout?: WaterLayout,
+  project: (dot: AssemblyDot) => Point, layout?: WaterLayout, art?: WaterArt,
 ): Lane[] {
   const groups = new Map(roles.map((role) => [role, [] as AssemblyDot[]]));
   for (const dot of dots) groups.get(dot.swarm)?.push(dot);
   const populated = roles.filter((role) => groups.get(role)!.length);
   const shares = populated.reduce((sum, role) => sum + swarms[role].share, 0);
-  return populated.map((swarm) => {
+  const wood = layout ? [] : groups.get('structure')!.filter((dot) => dot.material < 3);
+  const guideCount = Math.min(wood.length, 144);
+  const guides = Array.from({ length: guideCount }, (_, i) => wood[Math.floor((i + .5) * wood.length / guideCount)]);
+  const columnWidth = layout ? (art?.width ?? width) / 4 : 260;
+  const rowHeight = layout ? (art?.height ?? height) / 3 : 300;
+  return populated.flatMap((swarm) => {
     const group = groups.get(swarm)!;
     const { duration, share } = swarms[swarm];
     const count = Math.min(group.length, Math.floor(budget * share / shares));
-    const members = Array.from({ length: count }, (_, i) => {
-      const dot = group[Math.floor((i + .5) * group.length / count)];
-      return route(dot, project(dot), width, height, layout);
+    const fronts = new Map<number, Front>();
+    for (const dot of group) {
+      let fall = -1;
+      let key: number;
+      if (swarm === 'water' && layout && art) {
+        const cascade = cascadeAt(layout, dot.x / art.width, dot.y / art.height);
+        fall = cascade ? layout.cascades.indexOf(cascade) : -1;
+        key = fall;
+      } else {
+        const column = Math.floor(dot.x / columnWidth);
+        const row = Math.floor(dot.y / rowHeight);
+        key = row * 32 + column;
+      }
+      let front = fronts.get(key);
+      if (!front) {
+        front = { dots: [], fall };
+        fronts.set(key, front);
+      }
+      front.dots.push(dot);
+    }
+    // Let each drop send a front even when the pool contains many more targets.
+    const weight = (front: Front) => swarm === 'water' && art ? 1 : Math.sqrt(front.dots.length);
+    const total = [...fronts.values()].reduce((sum, front) => sum + weight(front), 0);
+    let running = 0;
+    let allocated = 0;
+    return [...fronts.values()].flatMap((front) => {
+      running += weight(front);
+      const end = Math.round(count * running / total);
+      const size = Math.min(front.dots.length, end - allocated);
+      allocated = end;
+      if (!size) return [];
+      const center = project(front.dots[Math.floor(front.dots.length / 2)]);
+      const lower = front.fall === 1;
+      const members = Array.from({ length: size }, (_, i) => {
+        const dot = front.dots[Math.floor((i + .5) * front.dots.length / size)];
+        const support = branchSupport(dot, guides);
+        return route(dot, project(dot), center, width, height, support && project(support), layout, art, front.fall);
+      });
+      return [{ swarm, duration: duration * (lower ? .84 : 1), next: 0, members }];
     });
-    return { swarm, duration, next: 0, members };
   });
 }
 
-function route(dot: AssemblyDot, target: Point, width: number, height: number, layout?: WaterLayout): Courier {
+function branchSupport(dot: AssemblyDot, guides: AssemblyDot[]): AssemblyDot | undefined {
+  const leaf = dot.swarm === 'foliage' && dot.material === 3;
+  const wood = dot.swarm === 'structure' && dot.material < 3;
+  if (!leaf && !wood) return;
+  let closest: AssemblyDot | undefined;
+  let distance = 255 ** 2;
+  for (const guide of guides) {
+    const lead = dot.reveal - guide.reveal;
+    if (lead < (wood ? .035 : 0) || (wood && lead > .17)) continue;
+    const dx = guide.x - dot.x;
+    const dy = guide.y - dot.y;
+    const score = dx * dx + dy * dy;
+    if (score < distance) {
+      distance = score;
+      closest = guide;
+    }
+  }
+  return closest;
+}
+
+function waterRoute(art: WaterArt, fall: number, target: Point, width: number, height: number) {
+  const scaleX = width / art.width;
+  const scaleY = height / art.height;
+  const sx = target.x / scaleX;
+  const sy = target.y / scaleY;
+  const strands = art.falls[fall].strands;
+  let strand = strands[0];
+  let distance = Infinity;
+  for (const candidate of strands) {
+    const [ax, ay, bx, , cx, cy] = candidate;
+    const t = clamp((sy - ay) / (cy - ay));
+    const rest = 1 - t;
+    const laneX = rest * rest * ax + 2 * rest * t * bx + t * t * cx;
+    const score = Math.abs(laneX - sx) + Math.abs(sy - (ay + t * (cy - ay))) * .35;
+    if (score < distance) {
+      distance = score;
+      strand = candidate;
+    }
+  }
+  const [x, y, bend] = strand;
+  const lip = Math.min(y * scaleY, target.y - height * .009);
+  return {
+    fromX: x * scaleX + width * .018,
+    fromY: lip - height * .009,
+    bendX: bend * scaleX,
+    bendY: lip + .32 * (target.y - lip),
+  };
+}
+
+function route(
+  dot: AssemblyDot, target: Point, front: Point, width: number, height: number,
+  support: Point | undefined, layout: WaterLayout | undefined, art: WaterArt | undefined, fall: number,
+): Courier {
   const { x, y } = target;
   const grain = variation(Math.round(dot.x * 233 + dot.y * 97)) - .5;
-  const zone = (Math.floor(x / width * 6) + .5) * width / 6;
-  const direction = x >= zone ? -1 : 1;
+  const direction = x >= front.x ? -1 : 1;
+  if (art && fall >= 0) return { ...target, dot, ...waterRoute(art, fall, target, width, height) };
+  if (support) {
+    const dx = x - support.x;
+    const dy = y - support.y;
+    return {
+      ...target, dot,
+      fromX: support.x - dx * .55 + grain * width * .011,
+      fromY: support.y - dy * .42 + grain * height * .008,
+      bendX: support.x + dx * .1,
+      bendY: support.y + dy * .09,
+    };
+  }
   let fromX = x;
   let fromY = y;
   let bow = 0;
   switch (dot.swarm) {
     case 'structure':
-      fromX = .38 * zone + .62 * x + grain * width * .031;
-      fromY = Math.min(height * .98, y + (height - y) * .29 + height * .06);
-      bow = height * .016;
+      fromX = .56 * front.x + .44 * x - width * (.032 - grain * .014);
+      fromY = Math.min(height * .98, y + (height - y) * .24 + height * .037);
+      bow = height * .013;
       break;
     case 'foliage':
       fromX = x + width * (direction * .086 + grain * .047);
@@ -146,14 +251,14 @@ function route(dot: AssemblyDot, target: Point, width: number, height: number, l
       break;
     }
     case 'atmosphere':
-      fromX = x - width * (.09 + grain * .06);
-      fromY = y + height * (.023 + grain * .04);
-      bow = -height * .022;
+      fromX = .33 * front.x + .67 * x - width * (.13 + grain * .022);
+      fromY = .28 * front.y + .72 * y + height * .022;
+      bow = -height * .015;
       break;
     case 'detail':
-      fromX = x + width * (direction * .031 + grain * .018);
-      fromY = y - height * .021;
-      bow = -height * .012;
+      fromX = .38 * front.x + .62 * x + width * (direction * .022 + grain * .012);
+      fromY = y - height * .017;
+      bow = -height * .007;
       break;
   }
   return { ...target, dot, fromX, fromY, bendX: (fromX + x) / 2, bendY: (fromY + y) / 2 + bow };
