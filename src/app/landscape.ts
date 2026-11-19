@@ -628,56 +628,287 @@ const fishMarks = [
   [-1.2, 2, 1], [.4, -2.6, 1.1], [.9, -.7, 1.5], [.9, 1.6, 1.3],
   [2.9, -1.6, 1.3], [3.1, .7, 1.5], [5.2, -.4, 1.3], [6.3, .1, .7],
 ] as const;
+let fishPaths: { body: Path2D; glint: Path2D } | undefined;
 
-function paintFishJump(
-  ctx: CanvasRenderingContext2D, width: number, height: number, shoreline: number,
-  compact: boolean, elapsed: number, gain: number,
+function paintFishBody(
+  ctx: CanvasRenderingContext2D, x: number, y: number, angle: number, size: number, opacity: number, color: string,
 ): void {
-  const age = (elapsed - 13600) % 28500;
-  if (age < 0 || age >= 2150) return;
-  const flight = 920;
+  if (!fishPaths) {
+    const body = new Path2D();
+    for (const [dx, dy, radius] of fishMarks) {
+      body.moveTo(dx + radius, dy);
+      body.arc(dx, dy, radius, 0, Math.PI * 2);
+    }
+    const glint = new Path2D();
+    glint.moveTo(1.4, -1.65);
+    glint.arc(.3, -1.65, 1.1, 0, Math.PI * 2);
+    glint.moveTo(4.55, -.65);
+    glint.arc(3.85, -.65, .7, 0, Math.PI * 2);
+    fishPaths = { body, glint };
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(size, size);
+  ctx.globalAlpha = opacity;
+  ctx.fillStyle = color;
+  ctx.fill(fishPaths.body);
+  ctx.fillStyle = '#c7b79b';
+  ctx.fill(fishPaths.glint);
+  ctx.restore();
+}
+
+const fishWakeLead = 640;
+const fishWakeTail = 940;
+
+function paintFishWake(
+  ctx: CanvasRenderingContext2D, x: number, y: number, age: number, size: number, gain: number, approaching = false,
+): void {
+  if (age < 0) {
+    if (!approaching || age <= -fishWakeLead) return;
+    const phase = 1 + age / fishWakeLead;
+    const reach = (12 - phase * 7) * size;
+    ctx.strokeStyle = '#4b776c';
+    ctx.lineWidth = .85;
+    ctx.globalAlpha = gain * .67 * Math.min(1, 4 * phase);
+    ctx.beginPath();
+    ctx.moveTo(x - reach, y + 3 * (1 - phase));
+    ctx.quadraticCurveTo(x, y + 5, x + reach * .7, y + 3 * (1 - phase));
+    ctx.stroke();
+    return;
+  }
+  const phase = age / fishWakeTail;
+  if (phase >= 1) return;
+  const reach = (3 + 19 * phase) * size;
+  ctx.strokeStyle = '#fff4d8';
+  ctx.lineWidth = 1.05;
+  ctx.globalAlpha = gain * .96 * (1 - phase);
+  ctx.beginPath();
+  ctx.ellipse(x, y, reach, reach * .21, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  if (phase >= .43) return;
+  ctx.fillStyle = '#fff6e5';
+  ctx.globalAlpha = gain * .89 * (1 - phase / .43);
+  ctx.beginPath();
+  for (let i = -2; i <= 2; i++) {
+    const px = x + i * (2 + phase * 17) * size;
+    const py = y - Math.sin(phase / .43 * Math.PI) * (7.2 - Math.abs(i) * 2) * size;
+    const radius = (1.14 - Math.abs(i) * .23) * size;
+    ctx.moveTo(px + radius, py);
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
+const fishFirstSlot = 5800;
+const fishSlotMs = 4450;
+const pondLeapMs = 1110;
+const fishMoves = ['pond', 'crest', 'return', 'stone', 'swim'] as const;
+const firstFishDelays = [900, 1250, 815, 1460, 990];
+
+function fishMove(slot: number): (typeof fishMoves)[number] {
+  if (slot < fishMoves.length) return fishMoves[slot];
+  const sample = Math.imul(slot ^ (slot >>> 9), 0x45d9f3b) >>> 0;
+  return fishMoves[(sample >>> 14) % fishMoves.length];
+}
+
+function fishAge(elapsed: number, slot: number): number {
+  const offset = firstFishDelays[slot] ?? 760 + ((Math.imul(slot, 0x9e3779b9) >>> 12) % 900);
+  return elapsed - fishFirstSlot - slot * fishSlotMs - offset;
+}
+
+function pondReach(width: number, compact: boolean): number {
+  return Math.min(width * .1, compact ? 38 : 83);
+}
+
+export function pondSplashLift(
+  elapsed: number, width: number, height: number, compact: boolean, backdrop: keyof typeof illustratedWater, x: number, y: number,
+): number {
+  const slot = Math.floor((elapsed - fishFirstSlot) / fishSlotMs);
+  if (slot < 0 || fishMove(slot) !== 'pond') return 0;
+  const age = (fishAge(elapsed, slot) - pondLeapMs) / 720;
+  if (age <= 0 || age >= 1) return 0;
+  const surface = height * (1 + sampledWater[backdrop].shoreline) * .5;
+  const landing = width * (compact ? .23 : .43) + pondReach(width, compact);
+  const proximity = Math.max(0, 1 - Math.hypot(x - landing, 1.45 * (y - surface)) / (compact ? 58 : 94));
+  return 15 * proximity * Math.sin(Math.PI * age);
+}
+
+function paintFishHop(
+  ctx: CanvasRenderingContext2D, x: number, y: number, distance: number, rise: number,
+  age: number, duration: number, size: number, gain: number, color: string,
+): void {
+  paintFishWake(ctx, x, y, age, size, gain, true);
+  paintFishWake(ctx, x + distance, y, age - duration, size, gain);
+  if (age < 0 || age >= duration) return;
+  const t = age / duration;
+  paintFishBody(ctx, x + distance * t, y - 4 * rise * t * (1 - t),
+    Math.atan2(4 * rise * (2 * t - 1), distance), size, gain * Math.min(1, t * 14, (1 - t) * 15), color);
+}
+
+function paintFishAscent(
+  ctx: CanvasRenderingContext2D, art: WaterArt, width: number, height: number, age: number, clearsLip: boolean, gain: number,
+): void {
+  const duration = clearsLip ? 1430 : 1260;
+  const [ax, ay, bx, by, cx, cy] = art.falls[1].strands[clearsLip ? 4 : 1];
+  const scaleX = width / art.width;
+  const scaleY = height / art.height;
+  const sweep = Math.min(10, width * .019);
+  const size = clearsLip ? 1.39 : 1.03;
+  const landingX = clearsLip ? ax * scaleX + 7 : cx * scaleX + sweep * .5;
+  const landingY = clearsLip ? ay * scaleY - 4 : cy * scaleY + 3;
+  paintFishWake(ctx, cx * scaleX - sweep * .5, cy * scaleY + 3, age, size, gain, true);
+  paintFishWake(ctx, landingX, landingY, age - duration, size, gain);
+  if (age < 0 || age >= duration) return;
+
+  const t = age / duration;
+  const arc = clearsLip ? Math.min(1, t / .81) : .72 * Math.sin(Math.PI * t);
+  const trace = 1 - arc;
+  const upstream = clearsLip ? Math.max(0, (t - .81) / .19) : 0;
+  const sweepX = clearsLip ? -sweep * .5 * trace + 7 * upstream : (t - .5) * sweep;
+  const x = strandAxis(ax, bx, cx, trace) * scaleX + sweepX;
+  const y = strandAxis(ay, by, cy, trace) * scaleY + 3 * trace - 4 * upstream;
+  const speed = clearsLip ? -1 / .81 : -.72 * Math.PI * Math.cos(Math.PI * t);
+  const dx = 2 * ((1 - trace) * (bx - ax) + trace * (cx - bx)) * scaleX * speed + sweep;
+  const dy = (2 * ((1 - trace) * (by - ay) + trace * (cy - by)) * scaleY + 3) * speed;
+  const angle = upstream > 0 ? Math.atan2(-4, 7) : Math.atan2(dy, dx);
+  paintFishBody(ctx, x, y, angle + .08 * Math.sin(t * 14 * Math.PI), size,
+    gain * Math.min(1, t * 14, (1 - t) * 15), clearsLip ? '#626759' : '#795e4c');
+}
+
+function paintPondFish(
+  ctx: CanvasRenderingContext2D, art: WaterArt | undefined, width: number, height: number, shoreline: number, compact: boolean,
+  elapsed: number, gain: number,
+): void {
+  const slot = Math.floor((elapsed - fishFirstSlot) / fishSlotMs);
+  if (slot < 0) return;
+  const age = fishAge(elapsed, slot);
+  if (age <= -fishWakeLead || age >= 2400) return;
+  const move = fishMove(slot);
+  const surface = height * (1 + shoreline) * .5;
   const origin = width * (compact ? .23 : .43);
-  const distance = Math.min(width * .1, compact ? 38 : 83);
-  const surface = height * (shoreline + (1 - shoreline) * .5);
-  const rise = Math.min(height * .036, compact ? 22 : 32);
-  const scale = Math.min(1.5, Math.max(.86, width / 885));
+  const reach = pondReach(width, compact);
+  const scale = Math.min(1.58, Math.max(1.13, width / 840));
 
   ctx.save();
-  ctx.lineWidth = .75;
-  ctx.strokeStyle = '#48796e';
-  for (let i = 0; i < 2; i++) {
-    const wave = (age - i * flight) / 1200;
-    if (wave <= 0 || wave >= 1) continue;
-    const spread = 2 + wave * 22 * scale;
-    ctx.globalAlpha = gain * .58 * (1 - wave) * Math.min(1, wave * 12);
-    ctx.beginPath();
-    ctx.ellipse(origin + i * distance, surface, spread, spread * .18, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  if (age < flight) {
-    const t = age / flight;
-    ctx.translate(origin + distance * t, surface - 4 * rise * t * (1 - t));
-    ctx.rotate(Math.atan2(4 * rise * (2 * t - 1), distance));
-    ctx.scale(scale, scale);
-    ctx.globalAlpha = gain * Math.min(1, t * 12, (1 - t) * 13);
-    ctx.fillStyle = '#985739';
-    ctx.beginPath();
-    for (const [x, y, r] of fishMarks) {
-      ctx.moveTo(x + r, y);
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.fillStyle = '#f4bc8b';
-    ctx.beginPath();
-    ctx.arc(.3, -1.75, .95, 0, Math.PI * 2);
-    ctx.fill();
+  if (move === 'pond') {
+    paintFishHop(ctx, origin, surface, reach, Math.min(height * .046, compact ? 29 : 38),
+      age, pondLeapMs, scale, gain, '#756151');
+  } else if ((move === 'crest' || move === 'return') && art) {
+    paintFishAscent(ctx, art, width, height, age, move === 'crest', gain);
+  } else if (move === 'stone' && art) {
+    const [, , , , footX, footY] = art.falls[1].strands[5];
+    const reach = Math.min(15, width * .036);
+    const x = footX * width / art.width - reach;
+    const y = footY * height / art.height + 2;
+    // A second, smaller hop clears the wet edge of the same rock.
+    paintFishHop(ctx, x, y, reach, 9, age, 520, .89, gain * .86, '#656b61');
+    if (age >= 620) paintFishHop(ctx, x + reach, y, reach * .68, 7, age - 620, 580, .89, gain * .79, '#656b61');
+  } else if (move === 'swim' && age >= 0 && age < 2190) {
+    const t = age / 2190;
+    const x = origin + reach * (t * 1.7 - .36);
+    const y = surface + 4 + 3.2 * Math.sin(t * Math.PI * 2);
+    const opacity = gain * .32 * Math.min(1, t * 7, (1 - t) * 7);
+    paintFishBody(ctx, x, y, .18 * Math.cos(t * Math.PI * 2), scale * 1.16, opacity, '#445f55');
   }
   ctx.restore();
 }
 
+function paintCurrentLeaf(
+  ctx: CanvasRenderingContext2D, art: WaterArt, width: number, height: number, portrait: boolean, elapsed: number, gain: number,
+): void {
+  const clock = elapsed - 8050;
+  const age = clock % 28_900;
+  if (age <= 0 || age >= 9200) return;
+  const pass = Math.floor(clock / 28_900);
+  const [ax, ay, bx, by, cx, cy] = art.falls[1].strands[3 + (pass & 1)];
+  const [foamX, foamY] = art.falls[0].foam[1];
+  const scaleX = width / art.width;
+  const scaleY = height / art.height;
+  let x: number;
+  let y: number;
+  if (age < 2700) {
+    const t = age / 2700;
+    const startX = width * (portrait ? .38 : .375);
+    const startY = height * (portrait ? .737 : .805);
+    x = startX + (foamX * scaleX - startX) * t + 9 * Math.sin(t * 5 * Math.PI) * Math.sin(t * Math.PI);
+    y = startY + (foamY * scaleY - startY) * t * (.44 + .56 * t);
+  } else if (age < 5820) {
+    const t = (age - 2700) / 3120;
+    const eddy = Math.sin(t * Math.PI);
+    x = (foamX + (ax - foamX) * t) * scaleX + 12 * eddy * Math.sin(t * Math.PI * 2);
+    y = (foamY + (ay - foamY) * t) * scaleY + 4 * eddy;
+  } else if (age < 6590) {
+    const t = (age - 5820) / 770;
+    const stream = .55 * t + .45 * t * t;
+    x = strandAxis(ax, bx, cx, stream) * scaleX;
+    y = strandAxis(ay, by, cy, stream) * scaleY;
+  } else {
+    const t = (age - 6590) / 2610;
+    const drift = pass % 3 === 1 ? t * (2 - t) * .5 : t;
+    x = cx * scaleX - drift * (portrait ? 23 : 40) + 4 * Math.sin(t * Math.PI * 2);
+    y = cy * scaleY + (portrait ? 20 : 23) * drift;
+  }
+  const fade = Math.min(1, age / 450, (9200 - age) / 600);
+  const angle = Math.sin(age / 330) * (age < 2700 ? 1.16 : .38);
+  ctx.fillStyle = '#967341';
+  ctx.globalAlpha = gain * fade * .9;
+  ctx.beginPath();
+  ctx.ellipse(x, y, 3.8, 1.7, angle, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#cfab69';
+  ctx.beginPath();
+  ctx.arc(x + 1, y - .55, .93, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function paintRidgeBirds(
+  ctx: CanvasRenderingContext2D, width: number, height: number, portrait: boolean, sparse: boolean, elapsed: number, gain: number,
+): void {
+  const flight = ((elapsed - 8500) % 23_000) / 5200;
+  if (flight <= 0 || flight >= 1) return;
+  ctx.strokeStyle = '#4e685f';
+  ctx.lineWidth = .95;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = gain * .69 * Math.min(1, flight * 8, (1 - flight) * 8);
+  ctx.beginPath();
+  const count = sparse ? 2 : 3;
+  for (let i = 0; i < count; i++) {
+    const x = width * ((portrait ? .09 : .49) + (portrait ? .37 : .23) * flight) - (portrait ? 11 : 23) * i;
+    const y = height * ((portrait ? .663 : .409) - .052 * Math.sin(Math.PI * flight) - .029 * flight)
+      + i * (portrait ? 5.5 : 8) + 1.8 * Math.sin(elapsed / 440 + i);
+    const span = (portrait ? 3.3 : 4.6) - i * .5;
+    const wing = 1.5 + 2 * Math.sin(elapsed / (95 + i * 14) + i * 2);
+    ctx.moveTo(x - span, y - wing);
+    ctx.quadraticCurveTo(x - 2, y - wing - 1.3, x, y);
+    ctx.quadraticCurveTo(x + 2, y - wing - .8, x + span, y - wing + .6);
+  }
+  ctx.stroke();
+}
+
+function paintShoreSeeds(
+  ctx: CanvasRenderingContext2D, width: number, height: number, portrait: boolean, sparse: boolean, elapsed: number, gain: number,
+): void {
+  const gust = ((elapsed - 11_800) % 16_800) / 4600;
+  if (gust <= 0 || gust >= 1) return;
+  ctx.fillStyle = '#b88441';
+  ctx.globalAlpha = gain * .78 * Math.min(1, gust * 8, (1 - gust) * 4);
+  ctx.beginPath();
+  const count = sparse ? 3 : 5;
+  for (let i = 0; i < count; i++) {
+    const x = width * ((portrait ? .94 : .961) - i * .011 - gust * (.14 + i * .008))
+      + 8 * Math.sin(gust * 9 + i * 2);
+    const y = height * ((portrait ? .919 : .907) - gust * (.076 + i * .009)) + 4 * Math.sin(gust * 15 + i);
+    const size = 1.06 - i * .11;
+    ctx.moveTo(x + size, y);
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
 export function paintLandscapeMotion(
   ctx: CanvasRenderingContext2D, width: number, height: number, compact: boolean, elapsed: number,
-  backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, stamps?: AtmosphereStamps,
+  backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, stamps?: AtmosphereStamps, constrained = false,
 ): void {
   if (width <= 0 || height <= 0) return;
   ctx.save();
@@ -736,7 +967,10 @@ export function paintLandscapeMotion(
     ctx.globalAlpha *= .58;
     ctx.fillRect(left + length + 2.5, y, length * .24, .65);
   }
-  if (waterGain) paintFishJump(ctx, width, height, shoreline, compact, elapsed, waterGain);
+  if (waterGain) {
+    paintPondFish(ctx, art, width, height, shoreline, compact, elapsed, waterGain);
+    if (art) paintCurrentLeaf(ctx, art, width, height, backdrop === 'portrait', elapsed, waterGain);
+  }
 
   if (stamps?.mist && mistGain) {
     const waterfall = cascades[0];
@@ -748,6 +982,12 @@ export function paintLandscapeMotion(
     ctx.globalAlpha = mistGain * (.23 + .06 * drift);
     ctx.drawImage(stamps.mist, cx - radius, cy - radius * .3, radius * 2, radius * .6);
   }
-  if (backdrop && stamps && mistGain) paintLantern(ctx, width, height, backdrop, elapsed, mistGain, stamps);
+  if (backdrop && mistGain) {
+    if (stamps) paintLantern(ctx, width, height, backdrop, elapsed, mistGain, stamps);
+    const portrait = backdrop === 'portrait';
+    const sparse = compact || constrained;
+    paintRidgeBirds(ctx, width, height, portrait, sparse, elapsed, mistGain);
+    paintShoreSeeds(ctx, width, height, portrait, sparse, elapsed, mistGain);
+  }
   ctx.restore();
 }

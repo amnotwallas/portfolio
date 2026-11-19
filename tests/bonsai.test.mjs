@@ -4,7 +4,8 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress } from '../src/app/bonsai-data.ts';
-import { illustratedWater, waterlineAt } from '../src/app/landscape.ts';
+import { variation } from '../src/app/forest-assembly.ts';
+import { illustratedWater, pondSplashLift, waterlineAt } from '../src/app/landscape.ts';
 
 test('loads the generated dots with valid dimensions and growth metadata', () => {
   const file = readFileSync('public/bonsai-particles.bin');
@@ -70,7 +71,7 @@ function createCanvas(motion = {}, browser = {}) {
   runInNewContext(compiledCanvas, {
     module,
     exports: module.exports,
-    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS, illustratedWater, waterlineAt },
+    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS, illustratedWater, pondSplashLift, waterlineAt, variation },
     window: { matchMedia: () => motion },
     AbortController,
     cancelAnimationFrame() {},
@@ -119,6 +120,59 @@ test('the sampled landscape deposits each mark at its arrival and retains settle
   component.paintBackdropUntil(.6);
   component.paintBackdropUntil(1);
   assert.deepEqual(marks, [[dots[0], 20, 12.5, .8, 2], [dots[1], 40, 25, 1, 3]]);
+});
+
+test('the dragonfly crosses the pond, rests on the shoreline and takes off again', () => {
+  for (const [width, height, perchX, perchY] of [
+    [390, 844, 37, 806],
+    [768, 1024, 73, 977],
+    [1440, 900, 414, 770],
+  ]) {
+    const component = createCanvas({}, { Path2D: class { moveTo() {} arc() {} } });
+    const positions = [];
+    const poses = [];
+    component.context = {
+      save() {}, restore() {}, setTransform() {}, rotate() {},
+      scale: (x, y) => poses.at(-1).scales.push([x, y]),
+      fill() { poses.at(-1).colors.push(this.fillStyle); },
+      translate(x, y) {
+        positions.push([x, y]);
+        poses.push({ scales: [], colors: [] });
+      },
+    };
+    component.viewportWidth = width;
+    component.viewportHeight = height;
+    component.view = fitBonsai(1122, 1402, width, height, 2);
+    component.backdropAssembly = {};
+    component.progress = 1;
+
+    component.drawDragonfly(6500);
+    assert.equal(positions.length, 0);
+    for (const elapsed of [7900, 11100, 12500, 17200, 23700, 25700, 27350]) {
+      component.drawDragonfly(elapsed);
+    }
+    assert.equal(positions.length, 7);
+    for (const [x, y] of positions) {
+      assert.ok(x > 15 && x < width - 15 && y > height * .79 && y < height - 12, `${width} × ${height}: ${x}, ${y}`);
+    }
+    assert.ok(positions[2][0] < positions[1][0], 'the dragonfly should briefly double back');
+    assert.ok(positions[3][0] - positions[4][0] > width * .5, 'the route should span the pond');
+    assert.deepEqual(positions[4], positions[5], 'it should stay still on the perch');
+    assert.notDeepEqual(poses[4].scales, poses[5].scales, 'its wings should keep moving on the perch');
+    assert.ok(poses[4].colors.includes('#087bc5') && poses[4].colors.includes('#a4ecff'));
+    const [x, y] = positions[4];
+    assert.ok(Math.abs(x - perchX) < 2 && Math.abs(y + 4 - perchY) < 2, 'the feet should reach the grass');
+    assert.ok(positions[6][0] > x && positions[6][1] < y, 'it climbs away from the grass');
+    component.drawDragonfly(33000);
+    assert.equal(positions.length, 7);
+    component.drawDragonfly(39_000);
+    component.drawDragonfly(67_500);
+    assert.equal(positions.length, 9);
+    assert.ok(Math.abs(positions[7][0] - positions[8][0]) > width * .08, 'later visits should follow different routes');
+    component.reduced = true;
+    component.drawDragonfly(23700);
+    assert.equal(positions.length, 9);
+  }
 });
 
 test('the reflection mirrors at the local waterline and clips to the illustrated pond', () => {

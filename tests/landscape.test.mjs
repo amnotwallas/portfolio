@@ -1,22 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { illustratedWater, paintLandscape, paintLandscapeMotion, waterlineAt } from '../src/app/landscape.ts';
+import { illustratedWater, paintLandscape, paintLandscapeMotion, pondSplashLift, waterlineAt } from '../src/app/landscape.ts';
+
+class RecordedPath {
+  marks = [];
+  moveTo(...values) { this.marks.push(values); }
+  arc(...values) { this.marks.push(values); }
+  rect(...values) { this.marks.push(values); }
+}
 
 test('landscape marks are reproducible while the water and mist move within a bounded frame budget', () => {
-  class RecordedPath {
-    marks = [];
-    moveTo(...values) { this.marks.push(values); }
-    arc(...values) { this.marks.push(values); }
-    rect(...values) { this.marks.push(values); }
-  }
-
   function observe(paint, elapsed, backdrop, water = 1, mist = 1) {
     let fills = 0;
     let droplets = 0;
     let mistDraws = 0;
     let rings = 0;
+    let driftingLeaf;
     let turns = 0;
     let streams = 0;
+    let ridgeBirds = 0;
+    let floatingSeeds = 0;
     let glowDraws = 0;
     let smokeDraws = 0;
     let signature = 0;
@@ -30,10 +33,15 @@ test('landscape marks are reproducible while the water and mist move within a bo
       save() {}, restore() {}, beginPath() {},
       translate(...values) { values.forEach(record); },
       rotate(value) { turns++; record(value); },
-      ellipse(...values) { rings++; values.forEach(record); },
+      ellipse(...values) {
+        if (this.fillStyle === '#967341') driftingLeaf = values.slice(0, 2);
+        else rings++;
+        values.forEach(record);
+      },
       scale(...values) { values.forEach(record); },
       fill(path) {
         fills++;
+        if (this.fillStyle === '#b88441') floatingSeeds++;
         for (const mark of path?.marks ?? []) mark.forEach(record);
       },
       fillRect(...values) { fills++; values.forEach(record); },
@@ -44,6 +52,7 @@ test('landscape marks are reproducible while the water and mist move within a bo
       bezierCurveTo(...values) { values.forEach(record); },
       stroke() {
         if (this.strokeStyle === '#fffbee' || this.strokeStyle === '#80a29a') streams++;
+        if (this.strokeStyle === '#4e685f') ridgeBirds++;
       },
       drawImage(stamp, ...values) {
         if (stamp === 'glow') glowDraws++;
@@ -53,7 +62,7 @@ test('landscape marks are reproducible while the water and mist move within a bo
       },
     };
     paint(ctx, 390, 844, true, elapsed, backdrop, water, mist, { mist: 'mist', glow: 'glow', smoke: 'smoke' });
-    return { fills, signature, droplets, mistDraws, rings, turns, streams, glowDraws, smokeDraws };
+    return { fills, signature, droplets, mistDraws, rings, turns, streams, glowDraws, smokeDraws, ridgeBirds, floatingSeeds, driftingLeaf };
   }
 
   const path = globalThis.Path2D;
@@ -81,17 +90,30 @@ test('landscape marks are reproducible while the water and mist move within a bo
     assert.ok(wide.glowDraws > 0 && wide.smokeDraws > 0);
     assert.equal(observe(paintLandscapeMotion, 0, 'portrait', 1, 0).glowDraws, 0);
     assert.equal(observe(paintLandscapeMotion, 0, 'portrait', 1, 0).smokeDraws, 0);
-    const leap = observe(paintLandscapeMotion, 14050, 'portrait');
+    const leap = observe(paintLandscapeMotion, 7120, 'portrait');
     assert.equal(leap.turns, 1);
     assert.ok(leap.rings > 0);
-    const landing = observe(paintLandscapeMotion, 14700, 'portrait');
+    const landing = observe(paintLandscapeMotion, 7910, 'portrait');
     assert.equal(landing.turns, 0);
     assert.ok(landing.rings > 0);
-    assert.equal(observe(paintLandscapeMotion, 14050, 'portrait', 0).turns, 0);
-    assert.equal(observe(paintLandscapeMotion, 16000, 'portrait').rings, 0);
+    assert.equal(observe(paintLandscapeMotion, 7120, 'portrait', 0).turns, 0);
+    assert.equal(observe(paintLandscapeMotion, 8920, 'portrait').rings, 0);
+    assert.equal(observe(paintLandscapeMotion, 10_500, 'portrait').ridgeBirds, 1);
+    assert.equal(observe(paintLandscapeMotion, 13_800, 'wide').floatingSeeds, 1);
+    assert.equal(observe(paintLandscapeMotion, 10_500, 'portrait', 1, 0).ridgeBirds, 0);
+    const shelf = observe(paintLandscapeMotion, 11_500, 'portrait').driftingLeaf;
+    const downstream = observe(paintLandscapeMotion, 15_000, 'portrait').driftingLeaf;
+    assert.ok(shelf && downstream && downstream[1] > shelf[1], 'the leaf should follow the cascade down');
   } finally {
     globalThis.Path2D = path;
   }
+});
+
+test('a splash only affects an insect close to the landing and at the time of impact', () => {
+  const rise = (elapsed, x, y) => pondSplashLift(elapsed, 390, 844, true, 'portrait', x, y);
+  assert.ok(rise(8110, 128, 817) > 10);
+  assert.equal(rise(8110, 238, 747), 0);
+  assert.equal(rise(9200, 128, 817), 0);
 });
 
 test('illustrated flow uses distinct strand widths and stays between sill rocks', () => {
@@ -136,5 +158,43 @@ test('illustrated flow uses distinct strand widths and stays between sill rocks'
       x >= left && x + length <= right && y >= waterlineAt(art, x) && y >= waterlineAt(art, x + length)
     ));
     assert.deepEqual([...foam], art.falls.flatMap((fall) => fall.foam.map(([x]) => x)));
+  }
+});
+
+test('fish can clear the lip, fall back, or make two short hops beside the sill', (t) => {
+  const path = globalThis.Path2D;
+  globalThis.Path2D = RecordedPath;
+  t.after(() => { globalThis.Path2D = path; });
+  for (const [layout, width, height, left, right, lip, foot] of [
+    ['portrait', 390, 844, 48, 138, 750, 780],
+    ['wide', 1440, 900, 605, 825, 795, 831],
+  ]) {
+    function fishAt(elapsed, gain = 1) {
+      const fish = [];
+      const ctx = {
+        save() {}, restore() {}, beginPath() {}, moveTo() {}, quadraticCurveTo() {},
+        arc() {}, fill() {}, stroke() {}, ellipse() {}, fillRect() {}, rotate() {},
+        translate(x, y) { fish.push({ x, y }); },
+        scale(size) { fish.at(-1).size = size; },
+      };
+      paintLandscapeMotion(ctx, width, height, layout === 'portrait', elapsed, layout, gain, 0);
+      return fish;
+    }
+
+    const [crest] = fishAt(12_780);
+    const [start] = fishAt(15_650);
+    const [small] = fishAt(16_145);
+    const [returning] = fishAt(16_650);
+    const [firstHop] = fishAt(20_875);
+    const [secondHop] = fishAt(21_555);
+    assert.ok(crest && start && small && returning && firstHop && secondHop);
+    assert.ok(crest.y < lip + 5, 'a successful leap should clear the lip');
+    assert.ok(start.y > small.y && returning.y > small.y, 'a failed leap drops back down the face');
+    assert.ok(crest.size > small.size * 1.2);
+    assert.ok(firstHop.x !== secondHop.x && Math.abs(firstHop.y - secondHop.y) < 15);
+    for (const { x, y } of [small, firstHop, secondHop]) {
+      assert.ok(x >= left && x <= right && y >= lip && y <= foot, `${layout}: ${x}, ${y}`);
+    }
+    assert.deepEqual(fishAt(16_145, 0), []);
   }
 });

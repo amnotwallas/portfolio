@@ -1,9 +1,9 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, ViewChild, inject } from '@angular/core';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress, landscapeVariant, type BonsaiData, type BonsaiParticle } from './bonsai-data';
-import { createAtmosphereStamps, illustratedWater, paintLandscape, paintLandscapeMotion, sampledWater, waterlineAt } from './landscape';
+import { createAtmosphereStamps, illustratedWater, paintLandscape, paintLandscapeMotion, pondSplashLift, sampledWater, waterlineAt } from './landscape';
 import { buildCouriers, ease, scheduleAssembly, swarmWeight, variation, type AssemblyData, type Lane } from './forest-assembly';
 
-type BirdDot = { x: number; y: number; radius: number };
+type StippleDot = { x: number; y: number; radius: number };
 type Backdrop = ReturnType<typeof landscapeVariant>;
 type BackdropAssembly = { data: AssemblyData; next: number; scaleX: number; scaleY: number; radiusScale: number };
 
@@ -13,8 +13,8 @@ const PAPER = '#f5efe5';
 type FallingLeaf = { dot: BonsaiParticle; start: number; duration: number; drift: number; burst: boolean };
 type WindMark = { dot: BonsaiParticle; grass: boolean; phase: number; tempo: number; landing: number };
 
-function birdEllipse(cx: number, cy: number, rx: number, ry: number, angle: number, seed: number): BirdDot[] {
-  const dots: BirdDot[] = [];
+function stippleEllipse(cx: number, cy: number, rx: number, ry: number, angle: number, seed: number): StippleDot[] {
+  const dots: StippleDot[] = [];
   const cosine = Math.cos(angle);
   const sine = Math.sin(angle);
   for (let row = -ry; row <= ry; row += 2.4) {
@@ -31,24 +31,107 @@ function birdEllipse(cx: number, cy: number, rx: number, ry: number, angle: numb
 }
 
 const birdTail = [
-  ...birdEllipse(-28, 3, 20, 3, -.18, 1),
-  ...birdEllipse(-29, 9, 18, 3, .12, 6),
+  ...stippleEllipse(-28, 3, 20, 3, -.18, 1),
+  ...stippleEllipse(-29, 9, 18, 3, .12, 6),
 ];
-const birdBody = birdEllipse(0, 0, 24, 13, -.12, 2);
-const birdHead = birdEllipse(18, -9, 10, 10, 0, 3);
-const birdFoldedWing = birdEllipse(-3, -3, 16, 7, -.25, 4);
+const birdBody = stippleEllipse(0, 0, 24, 13, -.12, 2);
+const birdHead = stippleEllipse(18, -9, 10, 10, 0, 3);
+const birdFoldedWing = stippleEllipse(-3, -3, 16, 7, -.25, 4);
 const birdFlightWing = [
-  ...birdEllipse(-6, -16, 9, 19, -.25, 7),
-  ...birdEllipse(-15, -31, 5, 14, -.2, 8),
-  ...birdEllipse(2, -28, 4, 11, .15, 9),
+  ...stippleEllipse(-6, -16, 9, 19, -.25, 7),
+  ...stippleEllipse(-15, -31, 5, 14, -.2, 8),
+  ...stippleEllipse(2, -28, 4, 11, .15, 9),
 ];
-const birdBeak = birdEllipse(35, -8, 10, 2.8, -.08, 5);
-const birdEye: BirdDot[] = [{ x: 21, y: -12, radius: 1.6 }];
-const birdFeet: BirdDot[] = [
+const birdBeak = stippleEllipse(35, -8, 10, 2.8, -.08, 5);
+const birdEye: StippleDot[] = [{ x: 21, y: -12, radius: 1.6 }];
+const birdFeet: StippleDot[] = [
   { x: -5, y: 11, radius: 1.3 }, { x: -5, y: 15, radius: 1.3 }, { x: -5, y: 19, radius: 1.3 }, { x: -9, y: 20, radius: 1.2 },
   { x: 7, y: 11, radius: 1.3 }, { x: 7, y: 15, radius: 1.3 }, { x: 7, y: 19, radius: 1.3 }, { x: 3, y: 20, radius: 1.2 },
 ];
-const birdPaths = new WeakMap<readonly BirdDot[], Path2D>();
+const dragonflyWings = [
+  ...stippleEllipse(1, -6, 2.35, 7.1, .46, 11),
+  ...stippleEllipse(-6, -5.4, 2.2, 6.2, -.51, 12),
+];
+const dragonflyBody: StippleDot[] = [
+  { x: -11, y: 1.1, radius: .72 }, { x: -9.4, y: 1.1, radius: .8 },
+  { x: -7.7, y: .9, radius: .88 }, { x: -6, y: .7, radius: .92 },
+  { x: -4.3, y: .5, radius: .98 }, { x: -2.6, y: .2, radius: 1.08 },
+  { x: -.8, y: 0, radius: 1.28 }, { x: 1.4, y: -.2, radius: 1.54 },
+  { x: 3.8, y: -.35, radius: 1.22 }, { x: 5.5, y: -.5, radius: 1.46 },
+];
+const dragonflyGlint: StippleDot[] = [
+  { x: -7.7, y: .65, radius: .48 }, { x: -4.3, y: .15, radius: .55 },
+  { x: -1.8, y: -.35, radius: .53 }, { x: 1.25, y: -.72, radius: .82 },
+  { x: 5.55, y: -.9, radius: .61 },
+];
+const dragonflyFeet: StippleDot[] = [
+  { x: -2, y: 1.75, radius: .52 }, { x: -1.35, y: 2.65, radius: .48 },
+  { x: -.55, y: 3.05, radius: .49 }, { x: .85, y: 3.1, radius: .46 },
+  { x: 1.78, y: 2.5, radius: .5 },
+];
+// Tips of existing grass blades in the wide and portrait illustrated shorelines.
+const dragonflyPerchWide = [481 / 1672, 805 / 941] as const;
+const dragonflyPerchPortrait = [82 / 863, 1740 / 1823] as const;
+const dragonflyLandsAt = 16_000;
+const dragonflyLeavesAt = 19_000;
+// Time since entry, wide position, portrait position, and heading.
+const dragonflyFlight = [
+  [0, [.32, .925], [.17, .93], .09],
+  [1750, [.50, .938], [.39, .942], .05],
+  [3150, [.562, .879], [.52, .883], -.38],
+  [3900, [.58, .878], [.54, .884], .09],
+  [5300, [.52, .913], [.47, .915], Math.PI - .18],
+  [5900, [.528, .918], [.48, .921], Math.PI - .03],
+  [7350, [.676, .949], [.64, .961], .16],
+  [9150, [.86, .961], [.84, .972], -.18],
+  [10_000, [.919, .913], [.925, .94], -.46],
+  [10_800, [.91, .887], [.908, .911], Math.PI + .22],
+  [12_500, [.715, .914], [.69, .914], Math.PI - .14],
+  [14_400, [.408, .843], [.262, .902], Math.PI + .055],
+  [15_100, [.317, .838], [.133, .926], Math.PI - .20],
+  [dragonflyLandsAt, dragonflyPerchWide, dragonflyPerchPortrait, Math.PI],
+  [dragonflyLeavesAt, dragonflyPerchWide, dragonflyPerchPortrait, Math.PI],
+  [19_750, [.34, .82], [.19, .918], .16],
+  [21_600, [.55, .893], [.45, .897], -.13],
+  [23_100, [.69, .901], [.65, .915], .12],
+] as const;
+type DragonflyRoute = {
+  path: readonly (readonly [number, readonly [number, number], readonly [number, number], number])[];
+  perch?: readonly [land: number, leave: number];
+};
+const dragonflyRoutes: readonly DragonflyRoute[] = [
+  { path: dragonflyFlight, perch: [dragonflyLandsAt, dragonflyLeavesAt] },
+  {
+    path: [
+      [0, [.285, .961], [.09, .951], .16],
+      [2400, [.445, .945], [.26, .956], -.12],
+      [4550, [.487, .957], [.43, .947], .14],
+      [5700, [.50, .938], [.445, .928], -.23],
+      [6800, [.483, .95], [.435, .939], Math.PI + .14],
+      [8300, [.44, .969], [.408, .961], Math.PI - .18],
+      [10_450, [.586, .952], [.61, .945], -.09],
+      [12_650, [.76, .93], [.79, .925], .14],
+      [13_900, [.88, .939], [.932, .916], .22],
+    ],
+  },
+  {
+    perch: [10_400, 12_100],
+    path: [
+      [0, [.886, .948], [.885, .963], Math.PI - .08],
+      [2650, [.687, .915], [.63, .936], Math.PI + .24],
+      [4540, [.572, .832], [.482, .847], Math.PI + .41],
+      [5650, [.558, .847], [.437, .86], Math.PI - .09],
+      [6750, [.575, .868], [.473, .877], .28],
+      [7500, [.595, .875], [.485, .887], .15],
+      [9030, [.38, .844], [.235, .923], Math.PI - .21],
+      [10_400, dragonflyPerchWide, dragonflyPerchPortrait, Math.PI],
+      [12_100, dragonflyPerchWide, dragonflyPerchPortrait, Math.PI],
+      [13_600, [.395, .873], [.275, .898], -.16],
+      [15_650, [.55, .923], [.46, .92], .12],
+    ],
+  },
+];
+const stipplePaths = new WeakMap<readonly StippleDot[], Path2D>();
 
 @Component({
   selector: 'app-bonsai-canvas',
@@ -366,7 +449,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     if ((water || atmosphere) && !instant) {
       context.setTransform(pixelWidth / this.viewportWidth, 0, 0, pixelHeight / this.viewportHeight, 0, 0);
       paintLandscapeMotion(context, this.viewportWidth, this.viewportHeight, compact, elapsed,
-        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.atmosphereStamps);
+        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.atmosphereStamps, this.constrained);
       if (atmosphere) this.drawAtmosphere(context, elapsed, compact, atmosphere);
       context.setTransform(1, 0, 0, 1, 0, 0);
     }
@@ -398,6 +481,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     }
     this.drawFallingLeaves(elapsed);
     this.drawBird(elapsed);
+    this.drawDragonfly(elapsed);
   }
 
   private showSeeds(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D, width: number, height: number): void {
@@ -480,7 +564,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private drawAtmosphere(context: CanvasRenderingContext2D, elapsed: number, compact: boolean, gain: number): void {
-    const count = this.constrained ? 10 : compact ? 15 : 24;
+    const count = this.constrained ? 8 : compact ? 12 : 20;
     for (let index = 1; index <= count; index++) {
       const phase = variation(index * 45631) * Math.PI * 2;
       const wind = Math.sin(elapsed / 6700 + phase);
@@ -620,18 +704,18 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       context.translate(2, -2);
       context.scale(.8, wingStroke * .8);
       context.globalAlpha = .65 * wingFade;
-      this.drawBirdDots(context, birdFlightWing, '#4d5658');
+      this.drawStippleDots(context, birdFlightWing, '#4d5658');
       context.restore();
     }
-    this.drawBirdDots(context, birdTail, '#303839');
-    this.drawBirdDots(context, birdBody, '#303638');
-    this.drawBirdDots(context, birdFoldedWing, '#41494b');
+    this.drawStippleDots(context, birdTail, '#303839');
+    this.drawStippleDots(context, birdBody, '#303638');
+    this.drawStippleDots(context, birdFoldedWing, '#41494b');
     if (flying) {
       context.save();
       context.translate(-4, -3);
       context.scale(1, wingStroke);
       context.globalAlpha = .96 * wingFade;
-      this.drawBirdDots(context, birdFlightWing, '#222b2d');
+      this.drawStippleDots(context, birdFlightWing, '#222b2d');
       context.restore();
     }
     const look = !flying && !this.reduced ? (landingAge % 9200 - 5600) / 760 : 0;
@@ -639,26 +723,90 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     context.translate(18, -6);
     if (look > 0 && look < 1) context.rotate(-.15 * Math.sin(look * Math.PI));
     context.translate(-18, 6);
-    this.drawBirdDots(context, birdHead, '#252c2e');
-    this.drawBirdDots(context, birdBeak, '#292f30');
-    this.drawBirdDots(context, birdEye, '#d2d0bd');
+    this.drawStippleDots(context, birdHead, '#252c2e');
+    this.drawStippleDots(context, birdBeak, '#292f30');
+    this.drawStippleDots(context, birdEye, '#d2d0bd');
     context.restore();
     context.save();
     context.globalAlpha = Math.max(0, Math.min(1, (flight - .82) / .18));
-    this.drawBirdDots(context, birdFeet, '#252c2e');
+    this.drawStippleDots(context, birdFeet, '#252c2e');
     context.restore();
     context.restore();
   }
 
-  private drawBirdDots(context: CanvasRenderingContext2D, dots: readonly BirdDot[], color: string): void {
-    let path = birdPaths.get(dots);
+  private drawDragonfly(elapsed: number): void {
+    const { context, view } = this;
+    if (!context || !view || !this.backdropAssembly || this.reduced || this.progress < 1) return;
+
+    const clock = elapsed - ASSEMBLY_MS - 1000;
+    if (clock <= 0) return;
+    const visitLength = 28_500;
+    const visit = Math.floor(clock / visitLength);
+    const route = visit < dragonflyRoutes.length ? visit : Math.floor(variation(visit * 1469) * dragonflyRoutes.length);
+    const { path, perch } = dragonflyRoutes[route];
+    const delay = visit ? 450 + 1750 * variation(visit * 5303) : 0;
+    const speed = visit ? .92 + .24 * variation(visit * 8017) : 1;
+    const flight = (clock % visitLength - delay) * speed;
+    const duration = path[path.length - 1][0];
+    if (flight <= 0 || flight >= duration) return;
+
+    let segment = 1;
+    while (path[segment][0] < flight) segment++;
+    const [from, wideFrom, portraitFrom, heading] = path[segment - 1];
+    const [to, wideTo, portraitTo, turn] = path[segment];
+    const wide = view.backdrop === 'wide';
+    const [startX, startY] = wide ? wideFrom : portraitFrom;
+    const [endX, endY] = wide ? wideTo : portraitTo;
+    const t = (flight - from) / (to - from);
+    const glide = t * t * (3 - 2 * t);
+    const angle = heading + (turn - heading) * glide;
+    const width = this.viewportWidth;
+    const height = this.viewportHeight;
+    const size = view.compact ? 1.17 : 1.32;
+    const airborne = perch ? Math.min(1, Math.max(perch[0] - flight, flight - perch[1], 0) / 380) : 1;
+    const x = (startX + (endX - startX) * glide) * width + airborne * 1.6 * Math.sin(elapsed / 195);
+    const hover = airborne * (2.4 * Math.sin(elapsed / 153) + .8 * Math.sin(elapsed / 79));
+    const y = (startY + (endY - startY) * glide) * height + hover - 3.6 * size * (1 - airborne);
+    const splash = airborne && pondSplashLift(elapsed, width, height, view.compact, view.backdrop, x, y);
+    const opacity = Math.min(1, flight / 850, (duration - flight) / 1100);
+    const wingbeat = elapsed / 37 + .5 * Math.sin(elapsed / 139);
+    const wingFlex = .15 + .28 * airborne;
+    const facing = Math.cos(angle);
+
+    context.save();
+    context.setTransform(view.pixelWidth / width, 0, 0, view.pixelHeight / height, 0, 0);
+    context.translate(x + splash * .27, y - splash);
+    context.rotate(.44 * Math.sin(angle) - splash * .026);
+    context.scale(size * (.26 * Math.sign(facing) + .74 * facing), size);
+    context.save();
+    context.scale(1, .82 + wingFlex * Math.sin(wingbeat));
+    context.globalAlpha = opacity * .65;
+    this.drawStippleDots(context, dragonflyWings, '#208fca');
+    context.restore();
+    context.save();
+    context.scale(1, -.82 - wingFlex * Math.sin(wingbeat + .54));
+    context.globalAlpha = opacity * .78;
+    this.drawStippleDots(context, dragonflyWings, '#56b7e1');
+    context.restore();
+    context.globalAlpha = opacity;
+    this.drawStippleDots(context, dragonflyBody, '#087bc5');
+    this.drawStippleDots(context, dragonflyGlint, '#a4ecff');
+    if (airborne < 1) {
+      context.globalAlpha = opacity * (1 - airborne) * .81;
+      this.drawStippleDots(context, dragonflyFeet, '#36473b');
+    }
+    context.restore();
+  }
+
+  private drawStippleDots(context: CanvasRenderingContext2D, dots: readonly StippleDot[], color: string): void {
+    let path = stipplePaths.get(dots);
     if (!path) {
       path = new Path2D();
       for (const dot of dots) {
         path.moveTo(dot.x + dot.radius, dot.y);
         path.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
       }
-      birdPaths.set(dots, path);
+      stipplePaths.set(dots, path);
     }
     context.fillStyle = color;
     context.fill(path);
