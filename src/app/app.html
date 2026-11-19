@@ -33,16 +33,7 @@
       <h1 id="name">{{ profile.name }}<span aria-hidden="true">.</span></h1>
       <p class="intro">{{ copy().intro }}</p>
 
-      <div class="message-stack" aria-live="polite">
-        @for (message of copy().messages; track $index) {
-          <p class="summary" [class.active]="selectedMessage() === $index" [attr.aria-hidden]="selectedMessage() !== $index">{{ message.summary }}</p>
-        }
-      </div>
-      <div class="message-nav" role="group" [attr.aria-label]="copy().messageNavLabel">
-        @for (message of copy().messages; track $index) {
-          <button type="button" [attr.aria-label]="message.topic" [attr.aria-pressed]="selectedMessage() === $index" (click)="selectedMessage.set($index)"><span aria-hidden="true"></span></button>
-        }
-      </div>
+      <p class="summary">{{ copy().summary }}</p>
 
       <div class="experience">
         <div class="experience-primary">
@@ -103,34 +94,16 @@
     </div>
 
     @switch (panel()) {
-      @case ('work') {
-        <article class="panel-entry">
-          <h3>Sentinel</h3>
-          <p>{{ copy().sentinel }}</p>
-        </article>
-        <article class="panel-entry">
-          <h3>CaseLens</h3>
-          <p>{{ copy().caseLens }}</p>
-          <a class="panel-link" [href]="profile.caseLensUrl" target="_blank" rel="noopener noreferrer">{{ copy().repository }} <span aria-hidden="true">↗</span></a>
-        </article>
-      }
       @case ('experience') {
         <article class="panel-entry">
           <h3>{{ profile.company }}</h3>
           <p>{{ copy().experienceRole }} · {{ copy().experienceDate }}</p>
           <ul>
-            @for (message of copy().messages; track message.topic) {
-              <li>{{ message.summary }}</li>
+            @for (highlight of copy().experienceHighlights; track highlight.title) {
+              <li><strong>{{ highlight.title }}</strong> {{ highlight.summary }}</li>
             }
           </ul>
           <a class="panel-link" [href]="profile.companyUrl" target="_blank" rel="noopener noreferrer">{{ copy().companySite }} <span aria-hidden="true">↗</span></a>
-        </article>
-      }
-      @case ('lab') {
-        <article class="panel-entry">
-          <h3>{{ copy().forest }}</h3>
-          <p>{{ copy().forestDescription }}</p>
-          <a class="panel-link" [href]="profile.forestUrl" target="_blank" rel="noopener noreferrer">{{ copy().repository }} <span aria-hidden="true">↗</span></a>
         </article>
       }
       @case ('contact') {
@@ -143,6 +116,22 @@
           </div>
           <p class="email-feedback" role="status">{{ emailFeedback() }}</p>
         </div>
+      }
+      @default {
+        @for (entry of (panel() === 'work' ? copy().work : copy().lab); track entry.id) {
+          <article class="panel-entry">
+            <h3>{{ entry.title }}</h3>
+            <p>{{ entry.summary }}</p>
+            <div class="panel-actions">
+              <a class="panel-link" [href]="profile.projectLinks[entry.id].repository" target="_blank" rel="noopener noreferrer" [attr.aria-label]="copy().repository + ' · ' + entry.title">
+                {{ copy().repository }} <span aria-hidden="true">↗</span>
+              </a>
+              <a class="panel-link" [href]="profile.projectLinks[entry.id].evidence" target="_blank" rel="noopener noreferrer">
+                {{ entry.evidence }} <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </article>
+        }
       }
     }
   </div>

@@ -13,16 +13,22 @@ test('the static bonsai asset, contact destinations, and both language copies ar
   assert.deepEqual(Object.keys(translations.en), Object.keys(translations.es));
 });
 
-test('each language offers three distinct, grounded professional messages', () => {
+test('both languages present the same projects with public sources and a separate IBICARE case', () => {
   for (const language of ['en', 'es']) {
-    const messages = translations[language].messages;
-    assert.equal(messages.length, 3);
-    assert.deepEqual(messages.map((message) => message.topic), language === 'en' ? ['Backend', 'AI Engineering', 'Access control'] : ['Backend', 'AI Engineering', 'Control de acceso']);
-    assert.ok(messages.every((message) => message.headline && message.summary));
-    assert.match(messages[0].summary, /IBICARE/);
-    assert.match(messages[1].summary, /MLflow/);
-    assert.match(messages[2].summary, /IBICARE/);
-    assert.doesNotMatch(messages.map((message) => `${message.headline} ${message.summary}`).join(' '), /CaseLens/);
+    const copy = translations[language];
+    assert.match(copy.summary ?? '', /IBICARE.*Neuroa/);
+    assert.deepEqual(copy.work.map((entry) => entry.id), ['caseLens', 'coffee']);
+    assert.deepEqual(copy.lab.map((entry) => entry.id), ['sentinel', 'factory', 'kern', 'forest']);
+    assert.equal(copy.experienceHighlights.length, 3);
+    assert.match(copy.experienceHighlights[0].summary, /MLflow.*400/);
+    assert.match(copy.experienceHighlights[1].summary, /GET.*POST/);
+    for (const entry of [...copy.work, ...copy.lab]) {
+      assert.ok(entry.title && entry.summary && entry.evidence);
+      const { repository, evidence } = profile.projectLinks[entry.id];
+      assert.equal(new URL(repository).origin, 'https://github.com');
+      assert.notEqual(evidence, repository);
+      assert.ok(evidence.startsWith(`${repository}/`) || evidence.startsWith(`${repository}#`));
+    }
   }
 });
 

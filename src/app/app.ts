@@ -23,7 +23,6 @@ export class App implements OnDestroy {
   protected readonly profile = profile;
   protected readonly language = signal(loadLanguage());
   protected readonly copy = computed(() => translations[this.language()]);
-  protected readonly selectedMessage = signal(2);
   protected readonly paused = signal(false);
   protected readonly panel = signal<Panel>('work');
   protected readonly cvFeedback = signal('');

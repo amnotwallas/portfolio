@@ -38,7 +38,7 @@
 
 .header-controls, .language-switch { display: flex; align-items: center; }
 .header-controls { gap: 4px; }
-.language-switch button, .motion-toggle, .message-nav button, .company-link, .detail-nav button {
+.language-switch button, .motion-toggle, .company-link, .detail-nav button {
   background: transparent;
   cursor: pointer;
   border: 0;
@@ -87,31 +87,13 @@ h1 {
   letter-spacing: -.018em;
   text-wrap: pretty;
 }
-.message-stack { display: grid; max-width: 480px; margin-top: 12px; }
 .summary {
-  grid-area: 1 / 1;
-  margin: 0;
+  max-width: 480px;
+  margin: 12px 0 8px;
   color: var(--muted);
   font-size: .88rem;
   line-height: 1.42;
-  visibility: hidden;
 }
-.summary.active { visibility: visible; }
-.message-nav { display: flex; justify-content: center; width: min(100%, 360px); }
-.message-nav button {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-}
-.message-nav button span {
-  width: 16px;
-  height: 4px;
-  border-radius: 5px;
-  background: #788d83;
-}
-.message-nav button[aria-pressed="true"] span { width: 20px; background: var(--pine); }
 
 .experience { font-size: .84rem; }
 .experience-primary { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; }
@@ -170,9 +152,8 @@ h1 {
   .hero { width: min(100%, 480px); }
   h1 { font-size: clamp(3.5rem, 6.65vw, 4.7rem); }
   .intro { margin-top: 23px; }
-  .summary { font-size: 1rem; }
+  .summary { margin-top: 19px; font-size: 1rem; }
   .eyebrow { font-size: .75rem; }
-  .message-stack { margin-top: 19px; }
   .hero-actions { gap: 12px; }
   .cv-link { padding-inline: 19px; }
 }
@@ -183,7 +164,6 @@ h1 {
   .hero { width: min(43vw, 575px); }
   h1 { font-size: clamp(3.8rem, 4.62vw, 5.5rem); margin-top: 16px; }
   .intro { margin-top: 28px; font-size: clamp(1.47rem, 1.72vw, 2rem); }
-  .message-nav { width: min(100%, 390px); }
   .experience { font-size: .9rem; }
   .experience p { font-size: .84rem; }
   .hero-actions { margin-top: 20px; }
