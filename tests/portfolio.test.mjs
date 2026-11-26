@@ -53,8 +53,8 @@ test('the production site uses the custom domain root and keeps its Pages domain
   assert.equal(cname, 'wallas.dev');
   assert.match(html, /rel="canonical" href="https:\/\/wallas\.dev\/"/);
   assert.match(html, /property="og:url" content="https:\/\/wallas\.dev\/"/);
-  assert.match(html, /property="og:image" content="https:\/\/wallas\.dev\/bonsai\.jpg"/);
-  assert.match(html, /name="twitter:image" content="https:\/\/wallas\.dev\/bonsai\.jpg"/);
+  assert.match(html, /property="og:image" content="https:\/\/wallas\.dev\/portfolio-share\.gif"/);
+  assert.match(html, /name="twitter:image" content="https:\/\/wallas\.dev\/portfolio-share\.gif"/);
   assert.match(html, /"url": "https:\/\/wallas\.dev\/"/);
   assert.doesNotMatch(html, /amnotwallas\.github\.io\/portfolio/);
 });

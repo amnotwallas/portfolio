@@ -101,6 +101,10 @@ export class InterfaceSwarm implements AfterViewInit, OnChanges, OnDestroy {
 
   private readonly tick = (now: number): void => {
     if (!this.context || this.paused) return;
+    if (this.lastFrame && now - this.lastFrame < 1000 / 30 - 1) {
+      this.frame = requestAnimationFrame(this.tick);
+      return;
+    }
     const bounds = this.host.nativeElement.getBoundingClientRect();
     if (this.lastFrame) this.elapsed += Math.min(50, now - this.lastFrame);
     this.lastFrame = now;

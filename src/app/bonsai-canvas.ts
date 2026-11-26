@@ -364,7 +364,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     if (this.destroyed || document.hidden || this.paused || this.reduced || !this.view) return;
     const delta = this.lastFrame ? now - this.lastFrame : 0;
     const quiet = this.elapsed > RAVEN_ENTRY_MS + RAVEN_FLIGHT_MS;
-    const frameInterval = this.view.compact || this.constrained || quiet ? 1000 / 30 - 1 : 0;
+    const frameInterval = quiet ? 1000 / 20 - 1 : 1000 / 30 - 1;
     if (!this.lastFrame || delta >= frameInterval) {
       this.elapsed += Math.min(delta, 100);
       this.lastFrame = now;
@@ -456,6 +456,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     context.drawImage(this.layer, 0, 0);
     if (this.progress < 1 && !instant) {
       this.drawSeeds(context, elapsed, pixelWidth, pixelHeight, compact, 1 - ease(Math.min(1, this.progress / .25)));
+      this.drawLandscapeSwarm(context, pixelWidth, pixelHeight, compact, this.progress);
       this.drawCouriers(context, this.backdropLanes);
       this.drawCouriers(context, this.treeLanes);
     }
@@ -505,6 +506,50 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       context.globalAlpha = gain * (.23 + phase * .22);
       const size = (.7 + phase * .55) * scale;
       context.fillRect(x + drift, y + drift * .4, size, size);
+    }
+    context.globalAlpha = 1;
+  }
+
+  private drawLandscapeSwarm(
+    context: CanvasRenderingContext2D, width: number, height: number, compact: boolean, progress: number,
+  ): void {
+    const count = this.constrained ? 74 : compact ? 108 : 190;
+    const dpr = this.view?.dpr ?? 1;
+    const targets = compact
+      ? [[.90, .69], [.29, .79], [.20, .90], [.72, .94]]
+      : [[.79, .29], [.54, .73], [.40, .65], [.73, .90]];
+    for (let index = 0; index < count; index++) {
+      const seed = index + 1;
+      const start = .02 + variation(seed * 4703) * .42;
+      const span = .38 + variation(seed * 1367) * .14;
+      const age = (progress - start) / span;
+      if (age < 0 || age > 1) continue;
+      const group = index % targets.length;
+      const [tx, ty] = targets[group];
+      const seedX = variation(seed * 8819);
+      const seedY = variation(seed * 1499);
+      const x0 = width * (compact ? .04 + seedX * .92 : .47 + seedX * .52);
+      const y0 = height * (compact ? .39 + seedY * .58 : .12 + seedY * .76);
+      const x1 = width * (tx + (seedX - .5) * .08);
+      const y1 = height * (ty + (seedY - .5) * .055);
+      const travel = ease(age);
+      const arc = Math.sin(travel * Math.PI);
+      const bend = (variation(seed * 2659) - .5) * width * .13;
+      const x = x0 + (x1 - x0) * travel + bend * arc;
+      const y = y0 + (y1 - y0) * travel - height * (.035 + seedY * .055) * arc;
+      const fade = Math.min(1, age * 5, (1 - age) * 5);
+      const size = (.55 + variation(seed * 5003) * 1.05) * dpr;
+      context.globalAlpha = fade * (.34 + variation(seed * 3251) * .36);
+      context.fillStyle = group === 1 ? '#e1ddc5' : group === 2 ? '#b67d60' : '#6c8b7b';
+      context.beginPath();
+      context.arc(x, y, size, 0, Math.PI * 2);
+      context.fill();
+      if (age < .8) {
+        context.globalAlpha *= .2;
+        context.beginPath();
+        context.arc(x - (x1 - x0) * .018, y - (y1 - y0) * .018, size * 2.5, 0, Math.PI * 2);
+        context.fill();
+      }
     }
     context.globalAlpha = 1;
   }
