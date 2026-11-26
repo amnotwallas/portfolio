@@ -125,10 +125,10 @@
             <h3>{{ entry.title }}</h3>
             <p>{{ entry.summary }}</p>
             <div class="panel-actions">
-              <a class="panel-link" [href]="profile.projectLinks[entry.id].repository" target="_blank" rel="noopener noreferrer" [attr.aria-label]="copy().repository + ' · ' + entry.title">
+              <a class="panel-link" [href]="profile.projectLinks[entry.id].repository" target="_top" [attr.aria-label]="copy().repository + ' · ' + entry.title" (click)="openProjectLink($event, profile.projectLinks[entry.id].repository)">
                 {{ copy().repository }} <span aria-hidden="true">↗</span>
               </a>
-              <a class="panel-link" [href]="profile.projectLinks[entry.id].evidence" target="_blank" rel="noopener noreferrer">
+              <a class="panel-link" [href]="profile.projectLinks[entry.id].evidence" target="_top" (click)="openProjectLink($event, profile.projectLinks[entry.id].evidence)">
                 {{ entry.evidence }} <span aria-hidden="true">↗</span>
               </a>
             </div>

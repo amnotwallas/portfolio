@@ -58,6 +58,12 @@ export class App implements OnDestroy {
     dialog.scrollTop = 0;
   }
 
+  protected openProjectLink(event: MouseEvent, href: string): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    window.location.assign(href);
+  }
+
   protected restoreFocus(): void {
     this.panelTrigger?.focus({ preventScroll: true });
     this.panelTrigger = undefined;
