@@ -38,9 +38,9 @@ See [the artwork notes](docs/redesign/README.md) for source files and regenerati
 
 ## Deploy to GitHub Pages
 
-The workflow in `.github/workflows/deploy.yml` builds and deploys pushes to `main`. In the repository's **Settings → Pages**, set **Build and deployment → Source** to **GitHub Actions**. The workflow builds with `--base-href "/<repository-name>/"`, so it works at the normal GitHub Pages project URL. If you deploy at the domain root instead, change the workflow base href to `/`.
+The workflow in `.github/workflows/deploy.yml` builds and deploys pushes to `main`. In the repository's **Settings → Pages**, set **Build and deployment → Source** to **GitHub Actions**. The site uses the root path for `https://wallas.dev/`; `public/CNAME` is copied into each deployment artifact to retain the custom domain.
 
-The workflow runs `npm ci`, `npm test`, and a production build before uploading `dist/portfolio/browser/`. Add the CV PDF before publishing if you want the download to be available.
+The workflow runs `npm ci`, `npm test`, and a production build before uploading `dist/portfolio/browser/`, including the CV PDF stored in `public/cv/`.
 
 ## Accessibility and performance
 

@@ -43,6 +43,22 @@ test('the initial HTML exposes the profile and contact links without JavaScript'
   assert.match(html, /href="https:\/\/www\.linkedin\.com\/in\/walterambriz"/);
 });
 
+test('the production site uses the custom domain root and keeps its Pages domain file', () => {
+  const html = readFileSync('src/index.html', 'utf8');
+  const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
+  const cname = readFileSync('public/CNAME', 'utf8').trim();
+
+  assert.match(html, /<base href="\/"\s*\/>/);
+  assert.doesNotMatch(workflow, /--base-href\s+.*repository\.name/);
+  assert.equal(cname, 'wallas.dev');
+  assert.match(html, /rel="canonical" href="https:\/\/wallas\.dev\/"/);
+  assert.match(html, /property="og:url" content="https:\/\/wallas\.dev\/"/);
+  assert.match(html, /property="og:image" content="https:\/\/wallas\.dev\/bonsai\.jpg"/);
+  assert.match(html, /name="twitter:image" content="https:\/\/wallas\.dev\/bonsai\.jpg"/);
+  assert.match(html, /"url": "https:\/\/wallas\.dev\/"/);
+  assert.doesNotMatch(html, /amnotwallas\.github\.io\/portfolio/);
+});
+
 test('the interface is visible independently of the forest and details open within one modal', () => {
   const template = readFileSync('src/app/app.html', 'utf8');
   assert.doesNotMatch(template, /treeStarted|growthStarted/);
