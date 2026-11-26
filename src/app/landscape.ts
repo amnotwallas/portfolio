@@ -551,9 +551,9 @@ function strandAxis(start: number, bend: number, foot: number, t: number): numbe
 
 function paintIllustratedFall(
   ctx: CanvasRenderingContext2D, fall: Waterfall, scaleX: number, scaleY: number,
-  compact: boolean, elapsed: number, gain: number, phase: number,
+  compact: boolean, elapsed: number, gain: number, phase: number, detail: number,
 ): void {
-  const count = compact ? Math.min(5, fall.strands.length) : fall.strands.length;
+  const count = Math.ceil((compact ? Math.min(5, fall.strands.length) : fall.strands.length) * detail);
   const period = 1110 + phase * 137;
   ctx.lineCap = 'round';
   for (let i = 0; i < count; i++) {
@@ -909,6 +909,7 @@ function paintShoreSeeds(
 export function paintLandscapeMotion(
   ctx: CanvasRenderingContext2D, width: number, height: number, compact: boolean, elapsed: number,
   backdrop?: keyof typeof sampledWater, waterGain = 1, mistGain = 1, stamps?: AtmosphereStamps, constrained = false,
+  detail = 1,
 ): void {
   if (width <= 0 || height <= 0) return;
   ctx.save();
@@ -919,7 +920,7 @@ export function paintLandscapeMotion(
     const cascade = cascades[index];
     const phase = index === 0 ? 0 : .47;
     if (art) {
-      paintIllustratedFall(ctx, art.falls[index], width / art.width, height / art.height, compact, elapsed, waterGain, phase);
+      paintIllustratedFall(ctx, art.falls[index], width / art.width, height / art.height, compact, elapsed, waterGain, phase, detail);
       continue;
     }
     paintFallStreams(ctx, cascade, width, height, compact, elapsed, waterGain, phase);
@@ -949,7 +950,8 @@ export function paintLandscapeMotion(
   const shoreline = water?.shoreline ?? (compact ? .943 : .927);
   const leftBank = art ? art.bank[0][0] / art.width * width : 0;
   const rightBank = art ? art.bank[art.bank.length - 1][0] / art.width * width : width;
-  for (let i = 0; waterGain && i < (compact ? 13 : 25); i++) {
+  const ripples = Math.ceil((compact ? 13 : 25) * detail);
+  for (let i = 0; waterGain && i < ripples; i++) {
     const wave = .5 + .5 * Math.sin(elapsed / (1075 + i * 39) + i * 4.01);
     const length = (5 + i % 7 * 7) * (.5 + wave * .6);
     const reach = length * 1.24 + 2.5;
@@ -985,7 +987,7 @@ export function paintLandscapeMotion(
   if (backdrop && mistGain) {
     if (stamps) paintLantern(ctx, width, height, backdrop, elapsed, mistGain, stamps);
     const portrait = backdrop === 'portrait';
-    const sparse = compact || constrained;
+    const sparse = compact || constrained || detail < 1;
     paintRidgeBirds(ctx, width, height, portrait, sparse, elapsed, mistGain);
     paintShoreSeeds(ctx, width, height, portrait, sparse, elapsed, mistGain);
   }

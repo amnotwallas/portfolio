@@ -1,7 +1,8 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, ViewChild, inject } from '@angular/core';
-import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress, landscapeVariant, type BonsaiData, type BonsaiParticle } from './bonsai-data';
+import { ASSEMBLY_MS, decodeBonsaiSteps, fitBonsai, growthProgress, landscapeVariant, sortByReveal, type BonsaiParticle } from './bonsai-data';
 import { createAtmosphereStamps, illustratedWater, paintLandscape, paintLandscapeMotion, pondSplashLift, sampledWater, waterlineAt } from './landscape';
-import { buildCouriers, ease, scheduleAssembly, swarmWeight, variation, type AssemblyData, type Lane } from './forest-assembly';
+import { buildCouriers, classifyAssemblySteps, ease, swarmWeight, variation, type AssemblyData, type Lane } from './forest-assembly';
+import { SceneQuality } from './scene-quality';
 
 type StippleDot = { x: number; y: number; radius: number };
 type Backdrop = ReturnType<typeof landscapeVariant>;
@@ -10,8 +11,12 @@ type BackdropAssembly = { data: AssemblyData; next: number; scaleX: number; scal
 const RAVEN_ENTRY_MS = ASSEMBLY_MS + 600;
 const RAVEN_FLIGHT_MS = 4000;
 const PAPER = '#f5efe5';
+const compactTargets = [[.90, .69], [.29, .79], [.20, .90], [.72, .94]];
+const wideTargets = [[.79, .29], [.54, .73], [.40, .65], [.73, .90]];
 type FallingLeaf = { dot: BonsaiParticle; start: number; duration: number; drift: number; burst: boolean };
 type WindMark = { dot: BonsaiParticle; grass: boolean; phase: number; tempo: number; landing: number };
+const windStampScale = 2;
+const windStampColumns = 32;
 
 function stippleEllipse(cx: number, cy: number, rx: number, ry: number, angle: number, seed: number): StippleDot[] {
   const dots: StippleDot[] = [];
@@ -156,10 +161,15 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   private readonly motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private reduced = this.motion.matches;
   private readonly constrained = (window.navigator?.hardwareConcurrency || 8) <= 4;
+  private readonly quality = new SceneQuality();
   private resizeObserver?: ResizeObserver;
+  private intersection?: IntersectionObserver;
+  private inView = true;
   private data?: AssemblyData;
   private animatedDots: WindMark[] = [];
   private windDots = new Set<BonsaiParticle>();
+  private windStamps?: HTMLCanvasElement;
+  private windStampSize = 0;
   private fallingSources: BonsaiParticle[] = [];
   private branchSources: BonsaiParticle[] = [];
   private readonly fallingLeaves: FallingLeaf[] = [];
@@ -174,6 +184,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   private backdropAssembly?: BackdropAssembly;
   private backdropLanes: Lane[] = [];
   private backdropFadeAt?: number;
+  private reflectionBaked = false;
   private layer?: HTMLCanvasElement;
   private layerContext?: CanvasRenderingContext2D;
   private view?: ReturnType<typeof fitBonsai>;
@@ -184,6 +195,8 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   private lastTap = -Infinity;
   private frame = 0;
   private lastFrame = 0;
+  private needsPaint = false;
+  private resizing = false;
   private elapsed = 0;
   private next = 0;
   private progress = 0;
@@ -202,28 +215,45 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.stop();
+  }
+
+  private stop(): void {
     this.abort.abort();
     cancelAnimationFrame(this.frame);
+    this.frame = 0;
     this.resizeObserver?.disconnect();
+    this.intersection?.disconnect();
     document.removeEventListener('visibilitychange', this.updateAnimation);
     this.motion.removeEventListener('change', this.onMotionChange);
+    if (this.landscape) this.landscape.width = this.landscape.height = 0;
+    if (this.layer) this.layer.width = this.layer.height = 0;
+    if (this.windStamps) this.windStamps.width = this.windStamps.height = 0;
+    const canvas = this.surface?.nativeElement;
+    if (canvas) canvas.width = canvas.height = 0;
+    this.data = this.backdropAssembly = undefined;
+    this.landmarks.clear();
+    this.windDots.clear();
+    this.animatedDots.length = this.treeLanes.length = this.backdropLanes.length = 0;
+    this.fallingSources.length = this.branchSources.length = 0;
+    this.fallingLeaves.length = this.leafPool.length = 0;
   }
 
   private async start(): Promise<void> {
     const canvas = this.surface.nativeElement;
-    const context = canvas.getContext('2d');
-    if (!context) return this.showFallback();
-    this.context = context;
     try {
+      const context = canvas.getContext('2d');
+      if (!context) return this.showFallback();
+      this.context = context;
+      canvas.addEventListener('contextlost', this.onContextLost, { signal: this.abort.signal });
       const compressed = typeof DecompressionStream !== 'undefined';
       const box = this.host.nativeElement.getBoundingClientRect();
       if (box.width && box.height) {
         if (!this.reduced) this.showSeeds(canvas, context, box.width, box.height);
         this.loadBackdrop(landscapeVariant(box.width, box.height));
       }
-      const raw = await this.readParticles(compressed ? 'bonsai-particles.pack' : 'bonsai-particles.bin');
+      const data = await this.readParticles(compressed ? 'bonsai-particles.pack' : 'bonsai-particles.bin');
       if (this.destroyed) return;
-      const data = scheduleAssembly(raw);
       this.data = data;
       const airborne = data.particles.filter((dot) => this.isAnimatedLeaf(dot) || this.isAnimatedGrass(dot));
       this.fallingSources = airborne.filter((dot) => dot.material === 3 && dot.y < 850 && dot.x > 90 && dot.x < data.width - 90);
@@ -235,6 +265,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
         const landing = grass ? 0 : Math.max(0, 1 - Math.hypot(dot.x - 875, dot.y - 590) / 260);
         return { dot, grass, phase: group * .7, tempo: .88 + group % 5 * .06, landing };
       });
+      this.prepareWindStamps(moving);
       this.branchSources = data.particles.filter((dot) => dot.material === 1 || dot.material === 2);
       canvas.addEventListener('click', this.onCanvasClick, { signal: this.abort.signal });
       canvas.addEventListener('pointermove', this.onPointerMove, { signal: this.abort.signal, passive: true });
@@ -247,42 +278,65 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       if (!this.layerContext || !this.landscapeContext) return this.showFallback();
       this.resizeObserver = new ResizeObserver(() => this.resize());
       this.resizeObserver.observe(this.host.nativeElement);
+      if (typeof IntersectionObserver !== 'undefined') {
+        this.intersection = new IntersectionObserver(([entry]) => {
+          if (this.inView === entry.isIntersecting) return;
+          this.inView = entry.isIntersecting;
+          this.updateAnimation();
+        });
+        this.intersection.observe(this.host.nativeElement);
+      }
       document.addEventListener('visibilitychange', this.updateAnimation);
       this.reduced = this.motion.matches;
       this.motion.addEventListener('change', this.onMotionChange);
       this.resize();
       this.updateAnimation();
     } catch {
-      if (!this.destroyed) this.showFallback();
+      if (!this.abort.signal.aborted) this.showFallback();
     }
   }
 
-  private async readParticles(filename: string): Promise<BonsaiData> {
+  private async runSteps<T>(steps: Generator<void, T>): Promise<T> {
+    while (!this.abort.signal.aborted) {
+      const deadline = performance.now() + 6;
+      let step = steps.next();
+      while (!step.done && performance.now() < deadline) step = steps.next();
+      if (step.done) return step.value;
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    throw this.abort.signal.reason;
+  }
+
+  private async readParticles(filename: string, backdrop?: Backdrop): Promise<AssemblyData> {
     const response = await fetch(new URL(filename, document.baseURI), { signal: this.abort.signal });
     if (!response.ok) throw new Error('Particle dataset unavailable');
     const buffer = filename.endsWith('.pack') && response.body
       ? await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
       : await response.arrayBuffer();
-    return decodeBonsai(buffer);
+    const raw = await this.runSteps(decodeBonsaiSteps(buffer));
+    const data = await this.runSteps(classifyAssemblySteps(raw, backdrop ? sampledWater[backdrop] : undefined));
+    await this.runSteps(sortByReveal(data.particles));
+    return data;
   }
 
   private loadBackdrop(backdrop: Backdrop): void {
     if (typeof DecompressionStream === 'undefined' || this.landmarks.has(backdrop)) return;
     this.landmarks.set(backdrop, 'pending');
-    void this.readParticles(`landscape-${backdrop}.pack`)
+    void this.readParticles(`landscape-${backdrop}.pack`, backdrop)
       .then((data) => {
-        if (!this.destroyed) this.setBackdrop(backdrop, data.particles.length ? scheduleAssembly(data, sampledWater[backdrop]) : null);
+        if (!this.destroyed) this.setBackdrop(backdrop, data.particles.length ? data : null);
       })
       .catch(() => this.setBackdrop(backdrop, null));
   }
 
   private setBackdrop(backdrop: Backdrop, data: AssemblyData | null): void {
-    if (this.destroyed) return;
+    if (this.abort.signal.aborted) return;
     this.landmarks.set(backdrop, data);
     if (this.view?.backdrop !== backdrop) return;
     this.backdropFadeAt = this.progress > .20 ? this.elapsed : undefined;
     this.paintBackdrop();
-    if (this.paused || this.reduced) this.present(this.elapsed);
+    this.needsPaint = true;
+    this.queueFrame();
   }
 
   private paintBackdrop(): void {
@@ -293,6 +347,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     const height = this.viewportHeight;
     this.backdropAssembly = undefined;
     this.backdropLanes = [];
+    this.reflectionBaked = false;
     context.setTransform(pixelWidth / width, 0, 0, pixelHeight / height, 0, 0);
     context.globalAlpha = 1;
     const data = this.landmarks.get(backdrop);
@@ -312,28 +367,35 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     const radiusScale = Math.sqrt(scaleX * scaleY);
     this.backdropAssembly = { data, next: 0, scaleX, scaleY, radiusScale };
     if (this.progress < 1 && !this.reduced) {
-      const budget = this.constrained ? 86 : compact ? 116 : 290;
+      const budget = Math.ceil((this.constrained ? 86 : compact ? 116 : 290) * this.quality.profile.detail);
       this.backdropLanes = buildCouriers(data.particles, pixelWidth, pixelHeight, budget, (dot) => ({
         x: dot.x * pixelWidth / data.width,
         y: dot.y * pixelHeight / data.height,
         radius: dot.radius * radiusScale * this.view!.dpr,
       }), sampledWater[backdrop], illustratedWater[backdrop]);
     }
-    this.paintBackdropUntil(this.progress);
   }
 
-  private paintBackdropUntil(progress: number): void {
+  private paintBackdropUntil(progress: number, deadline = Infinity): boolean {
     const assembly = this.backdropAssembly;
-    if (!assembly || !this.landscapeContext) return;
+    if (!assembly || !this.landscapeContext) return true;
     const dots = assembly.data.particles;
     while (assembly.next < dots.length && dots[assembly.next].reveal <= progress) {
       const dot = dots[assembly.next++];
       this.drawDot(this.landscapeContext, dot, dot.x * assembly.scaleX, dot.y * assembly.scaleY,
         dot.opacity, dot.radius * assembly.radiusScale);
+      if ((assembly.next & 127) === 0 && performance.now() >= deadline) break;
     }
+    return assembly.next === dots.length || dots[assembly.next].reveal > progress;
   }
 
+  private readonly onContextLost = (event: Event): void => {
+    event.preventDefault();
+    this.showFallback();
+  };
+
   private showFallback(): void {
+    this.stop();
     this.surface.nativeElement.hidden = true;
     this.host.nativeElement.classList.add('fallback-visible');
     this.fallback.nativeElement.src = 'bonsai.jpg';
@@ -347,53 +409,66 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
 
   private readonly updateAnimation = (): void => {
     cancelAnimationFrame(this.frame);
+    this.frame = 0;
     this.lastFrame = 0;
-    if (this.destroyed || !this.view || document.hidden) return;
+    this.quality.reset();
+    if (this.destroyed || !this.view || document.hidden || !this.inView || this.abort.signal.aborted) return;
     if (this.reduced) {
       this.elapsed = Math.max(this.elapsed, RAVEN_ENTRY_MS + RAVEN_FLIGHT_MS + 1300);
       this.birdLandedAt ??= this.elapsed - 1300;
       this.nextFallAt = Math.max(this.nextFallAt, this.elapsed + 2800);
-      this.paintUntil(1);
-      this.present(this.elapsed);
-    } else if (!this.paused) {
-      this.frame = requestAnimationFrame(this.tick);
+      this.needsPaint = true;
+      if (this.paintUntil(1)) this.present(this.elapsed);
     }
+    this.queueFrame();
   };
 
+  private queueFrame(): void {
+    if (!this.frame && !this.abort.signal.aborted && this.inView && !document.hidden
+      && (this.needsPaint || (!this.paused && !this.reduced))) this.frame = requestAnimationFrame(this.tick);
+  }
+
   private readonly tick = (now: number): void => {
-    if (this.destroyed || document.hidden || this.paused || this.reduced || !this.view) return;
+    this.frame = 0;
+    if (this.destroyed || document.hidden || !this.inView || !this.view) return;
+    const moving = !this.paused && !this.reduced;
     const delta = this.lastFrame ? now - this.lastFrame : 0;
-    const quiet = this.elapsed > RAVEN_ENTRY_MS + RAVEN_FLIGHT_MS;
-    const frameInterval = quiet ? 1000 / 20 - 1 : 1000 / 30 - 1;
-    if (!this.lastFrame || delta >= frameInterval) {
-      this.elapsed += Math.min(delta, 100);
+    const quiet = this.elapsed >= RAVEN_ENTRY_MS + RAVEN_FLIGHT_MS;
+    const profile = this.quality.profile;
+    const frameInterval = 1000 / (quiet ? profile.ambientFps : profile.constructionFps) - 1;
+    if (!moving || !this.lastFrame || delta >= frameInterval) {
+      const start = performance.now();
+      if (moving) this.elapsed += Math.min(delta, 100);
       this.lastFrame = now;
-      if (this.progress < 1) this.paintUntil(growthProgress(this.elapsed, false));
-      this.present(this.elapsed);
+      const ready = !(this.needsPaint || this.progress < 1)
+        || this.paintUntil(growthProgress(this.elapsed, this.reduced));
+      if (ready || (moving && !this.resizing)) this.present(this.elapsed);
+      if (moving && delta && !this.resizing
+        && this.quality.observe(now, performance.now() - start, delta, frameInterval)) this.resize();
     }
-    this.frame = requestAnimationFrame(this.tick);
+    this.queueFrame();
   };
 
   private resize(): void {
     if (!this.data || !this.layer || !this.context || !this.layerContext || !this.landscape) return;
     const box = this.host.nativeElement.getBoundingClientRect();
     if (!box.width || !box.height) return;
-    const fit = fitBonsai(this.data.width, this.data.height, box.width, box.height, devicePixelRatio || 1, this.constrained);
+    const fit = fitBonsai(this.data.width, this.data.height, box.width, box.height, devicePixelRatio || 1,
+      this.constrained, this.quality.profile.resolution);
     if (this.viewportWidth === box.width && this.viewportHeight === box.height && this.view?.dpr === fit.dpr) return;
     this.viewportWidth = box.width;
     this.viewportHeight = box.height;
     this.view = fit;
     this.cursor = undefined;
-    const canvas = this.surface.nativeElement;
-    canvas.width = this.layer.width = this.landscape.width = fit.pixelWidth;
-    canvas.height = this.layer.height = this.landscape.height = fit.pixelHeight;
+    this.layer.width = this.landscape.width = fit.pixelWidth;
+    this.layer.height = this.landscape.height = fit.pixelHeight;
     this.scale = fit.scale;
     this.offsetX = fit.offsetX;
     this.offsetY = fit.offsetY;
     this.loadBackdrop(fit.backdrop);
     this.paintBackdrop();
     this.layerContext.setTransform(this.scale, 0, 0, this.scale, this.offsetX, this.offsetY);
-    const budget = this.constrained ? 64 : fit.compact ? 84 : 210;
+    const budget = Math.ceil((this.constrained ? 64 : fit.compact ? 84 : 210) * this.quality.profile.detail);
     this.treeLanes = this.progress < 1 && !this.reduced
       ? buildCouriers(this.data.particles, fit.pixelWidth, fit.pixelHeight, budget, (dot) => ({
         x: this.offsetX + dot.x * this.scale,
@@ -402,14 +477,15 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       }))
       : [];
     this.next = 0;
-    this.paintUntil(growthProgress(this.elapsed, this.reduced));
-    this.present(this.elapsed);
+    this.needsPaint = this.resizing = true;
+    this.queueFrame();
   }
 
-  private paintUntil(progress: number): void {
-    if (!this.data || !this.layerContext) return;
+  private paintUntil(progress: number): boolean {
+    if (!this.data || !this.layerContext) return true;
     this.progress = progress;
-    this.paintBackdropUntil(progress);
+    const deadline = performance.now() + 8;
+    const backdropReady = this.paintBackdropUntil(progress, deadline - 3);
     const dots = this.data.particles;
     while (this.next < dots.length && dots[this.next].reveal <= progress) {
       const dot = dots[this.next++];
@@ -418,17 +494,46 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
         const fall = 13 + ((Math.round(dot.x * 4) * 17 + Math.round(dot.y * 4) * 31) % 23);
         this.drawDot(this.layerContext, dot, dot.x, dot.y + fall, dot.opacity * .34, dot.radius * .72);
       }
+      if ((this.next & 127) === 0 && performance.now() >= deadline) break;
     }
     if (progress === 1) {
       this.treeLanes.length = 0;
       this.backdropLanes.length = 0;
     }
+    const ready = backdropReady && (this.next === dots.length || dots[this.next].reveal > progress);
+    this.needsPaint = !ready;
+    if (ready) this.resizing = false;
+    return ready;
+  }
+
+  private prepareWindStamps(dots: BonsaiParticle[]): void {
+    if (!dots.length) return;
+    let radius = 0;
+    for (const dot of dots) radius = Math.max(radius, dot.radius);
+    const end = Math.ceil(radius * windStampScale) + 1;
+    const size = end * 2;
+    const atlas = document.createElement('canvas');
+    atlas.width = windStampColumns * size;
+    atlas.height = Math.ceil(dots.length / windStampColumns) * size;
+    const context = atlas.getContext('2d');
+    if (!context) return;
+    for (let i = 0; i < dots.length; i++) {
+      this.drawDot(context, dots[i], (i % windStampColumns) * size + end,
+        Math.floor(i / windStampColumns) * size + end, 1, dots[i].radius * windStampScale);
+    }
+    this.windStamps = atlas;
+    this.windStampSize = size;
   }
 
   private present(elapsed: number): void {
     if (!this.context || !this.layer || !this.landscape || !this.view) return;
     const context = this.context;
     const { pixelWidth, pixelHeight, compact, shore, backdrop } = this.view;
+    const canvas = this.surface.nativeElement;
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.globalAlpha = 1;
     const instant = this.reduced;
@@ -438,6 +543,11 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     const water = sceneryReady ? lateFade * swarmWeight('water', this.progress) : 0;
     const atmosphere = sceneryReady ? lateFade * swarmWeight('atmosphere', this.progress) : 0;
     const opacity = lateFade * (this.backdropAssembly || instant ? 1 : ease(this.progress));
+    if (!this.reflectionBaked && !this.needsPaint && this.progress === 1 && water === 1 && this.landscapeContext) {
+      this.landscapeContext.setTransform(1, 0, 0, 1, 0, 0);
+      this.drawReflection(this.landscapeContext, pixelWidth, pixelHeight, shore, 1, this.backdropAssembly ? backdrop : undefined);
+      this.reflectionBaked = true;
+    }
     if (opacity < 1) {
       context.fillStyle = this.backdropAssembly?.data.background ?? PAPER;
       context.fillRect(0, 0, pixelWidth, pixelHeight);
@@ -445,11 +555,14 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     }
     context.drawImage(this.landscape, 0, 0);
     context.globalAlpha = 1;
-    if (water) this.drawReflection(context, pixelWidth, pixelHeight, shore, water, this.backdropAssembly ? backdrop : undefined);
+    if (water && !this.reflectionBaked) {
+      this.drawReflection(context, pixelWidth, pixelHeight, shore, water, this.backdropAssembly ? backdrop : undefined);
+    }
     if ((water || atmosphere) && !instant) {
       context.setTransform(pixelWidth / this.viewportWidth, 0, 0, pixelHeight / this.viewportHeight, 0, 0);
       paintLandscapeMotion(context, this.viewportWidth, this.viewportHeight, compact, elapsed,
-        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.atmosphereStamps, this.constrained);
+        this.backdropAssembly ? backdrop : undefined, water, atmosphere, this.atmosphereStamps, this.constrained,
+        this.quality.profile.detail);
       if (atmosphere) this.drawAtmosphere(context, elapsed, compact, atmosphere);
       context.setTransform(1, 0, 0, 1, 0, 0);
     }
@@ -466,18 +579,48 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
     const landingShake = landingAge < 1300 && !instant
       ? Math.sin(landingAge / 55) * Math.exp(-landingAge / 350) * 5
       : 0;
-    for (const { dot, grass, phase: offset, tempo, landing } of this.animatedDots) {
+    const cursor = instant ? undefined : this.cursor;
+    const detail = this.quality.profile.detail;
+    const stamps = this.windStamps;
+    const stampSize = this.windStampSize;
+    const stampWidth = stampSize / windStampScale;
+    const stampRadius = stampWidth / 2;
+    for (let i = 0; i < this.animatedDots.length; i++) {
+      const { dot, grass, phase: offset, tempo, landing } = this.animatedDots[i];
       if (dot.reveal > this.progress) break;
       const sway = instant ? 0 : Math.sin(phase * tempo + offset) * (grass ? 1.05 : .9);
-      const pointer = !instant && this.cursor && !grass
-        ? Math.max(0, 1 - Math.hypot(dot.x - this.cursor.x, dot.y - this.cursor.y) / 170) * 6
-        : 0;
+      let pointer = 0;
+      if (cursor && !grass) {
+        const dx = dot.x - cursor.x;
+        const dy = dot.y - cursor.y;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared < 170 ** 2) pointer = (1 - Math.sqrt(distanceSquared) / 170) * 6 * Math.sin(phase * 3 + offset);
+      }
       const shake = landingShake * landing;
       const opacity = instant ? dot.opacity : dot.opacity * (.98 + .02 * Math.sin(phase * .8 + offset));
-      this.drawDot(context, dot, dot.x + sway * (grass ? .35 : 1) + shake + pointer * Math.sin(phase * 3 + offset), dot.y + shake * .25, opacity);
+      const x = dot.x + sway * (grass ? .35 : 1) + shake + pointer;
+      const y = dot.y + shake * .25;
+      if (stamps) {
+        const sx = (i % windStampColumns) * stampSize;
+        const sy = Math.floor(i / windStampColumns) * stampSize;
+        context.globalAlpha = opacity;
+        context.drawImage(stamps, sx, sy, stampSize, stampSize, x - stampRadius, y - stampRadius, stampWidth, stampWidth);
+        if (grass) {
+          const tipWidth = stampWidth * .8 / dot.radius;
+          const tuftWidth = stampWidth * .5 / dot.radius;
+          context.globalAlpha = opacity * .42;
+          context.drawImage(stamps, sx, sy, stampSize, stampSize,
+            dot.x + sway * .9 - tipWidth / 2, dot.y - 3 - tipWidth / 2, tipWidth, tipWidth);
+          context.globalAlpha = opacity * .32 * detail;
+          context.drawImage(stamps, sx, sy, stampSize, stampSize,
+            dot.x + sway * 1.4 - tuftWidth / 2, dot.y - 5 - tuftWidth / 2, tuftWidth, tuftWidth);
+        }
+        continue;
+      }
+      this.drawDot(context, dot, x, y, opacity);
       if (grass) {
         this.drawDot(context, dot, dot.x + sway * .9, dot.y - 3, opacity * .42, .8);
-        this.drawDot(context, dot, dot.x + sway * 1.4, dot.y - 5, opacity * .32, .5);
+        this.drawDot(context, dot, dot.x + sway * 1.4, dot.y - 5, opacity * .32 * detail, .5);
       }
     }
     this.drawFallingLeaves(elapsed);
@@ -513,11 +656,10 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   private drawLandscapeSwarm(
     context: CanvasRenderingContext2D, width: number, height: number, compact: boolean, progress: number,
   ): void {
-    const count = this.constrained ? 74 : compact ? 108 : 190;
+    const detail = this.quality.profile.detail;
+    const count = Math.ceil((this.constrained ? 74 : compact ? 108 : 190) * detail);
     const dpr = this.view?.dpr ?? 1;
-    const targets = compact
-      ? [[.90, .69], [.29, .79], [.20, .90], [.72, .94]]
-      : [[.79, .29], [.54, .73], [.40, .65], [.73, .90]];
+    const targets = compact ? compactTargets : wideTargets;
     for (let index = 0; index < count; index++) {
       const seed = index + 1;
       const start = .02 + variation(seed * 4703) * .42;
@@ -544,7 +686,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
       context.beginPath();
       context.arc(x, y, size, 0, Math.PI * 2);
       context.fill();
-      if (age < .8) {
+      if (age < .8 && detail > .5) {
         context.globalAlpha *= .2;
         context.beginPath();
         context.arc(x - (x1 - x0) * .018, y - (y1 - y0) * .018, size * 2.5, 0, Math.PI * 2);
@@ -609,7 +751,7 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private drawAtmosphere(context: CanvasRenderingContext2D, elapsed: number, compact: boolean, gain: number): void {
-    const count = this.constrained ? 8 : compact ? 12 : 20;
+    const count = Math.ceil((this.constrained ? 8 : compact ? 12 : 20) * this.quality.profile.detail);
     for (let index = 1; index <= count; index++) {
       const phase = variation(index * 45631) * Math.PI * 2;
       const wind = Math.sin(elapsed / 6700 + phase);
@@ -661,7 +803,8 @@ export class BonsaiCanvas implements AfterViewInit, OnChanges, OnDestroy {
   };
 
   private releaseLeaf(dot: BonsaiParticle, start: number, duration: number, drift: number, burst = false): void {
-    if (this.fallingLeaves.length >= (this.view?.compact ? 24 : 40)) return;
+    const budget = Math.ceil((this.view?.compact ? 24 : 40) * this.quality.profile.detail);
+    if (this.fallingLeaves.length >= budget) return;
     const leaf = this.leafPool.pop();
     if (leaf) {
       leaf.dot = dot;

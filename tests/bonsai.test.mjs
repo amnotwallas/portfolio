@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { ASSEMBLY_MS, decodeBonsai, fitBonsai, growthProgress } from '../src/app/bonsai-data.ts';
 import { variation } from '../src/app/forest-assembly.ts';
 import { illustratedWater, pondSplashLift, waterlineAt } from '../src/app/landscape.ts';
+import { SceneQuality } from '../src/app/scene-quality.ts';
 
 test('loads the generated dots with valid dimensions and growth metadata', () => {
   const file = readFileSync('public/bonsai-particles.bin');
@@ -71,7 +72,7 @@ function createCanvas(motion = {}, browser = {}) {
   runInNewContext(compiledCanvas, {
     module,
     exports: module.exports,
-    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS, illustratedWater, pondSplashLift, waterlineAt, variation },
+    require: (name) => name === '@angular/core' ? angular : { ASSEMBLY_MS, illustratedWater, pondSplashLift, waterlineAt, variation, SceneQuality },
     window: { matchMedia: () => motion },
     AbortController,
     cancelAnimationFrame() {},
@@ -120,6 +121,20 @@ test('the sampled landscape deposits each mark at its arrival and retains settle
   component.paintBackdropUntil(.6);
   component.paintBackdropUntil(1);
   assert.deepEqual(marks, [[dots[0], 20, 12.5, .8, 2], [dots[1], 40, 25, 1, 3]]);
+});
+
+test('landscape deposition resumes at the same mark after exhausting a frame budget', () => {
+  const component = createCanvas({}, { performance: { now: () => 10 } });
+  const dots = Array.from({ length: 256 }, (_, x) => ({ x, y: 25, radius: 2, opacity: .8, reveal: .2 }));
+  const painted = [];
+  component.landscapeContext = {};
+  component.backdropAssembly = { data: { particles: dots }, next: 0, scaleX: 1, scaleY: 1, radiusScale: 1 };
+  component.drawDot = (_context, dot) => painted.push(dot);
+
+  assert.equal(component.paintBackdropUntil(.5, 8), false);
+  assert.equal(painted.length, 128);
+  assert.equal(component.paintBackdropUntil(.5, 8), true);
+  assert.deepEqual(painted, dots);
 });
 
 test('the dragonfly crosses the pond, rests on the shoreline and takes off again', () => {
@@ -268,7 +283,11 @@ test('switching reduced motion on during construction settles the scene', () => 
   component.elapsed = 1250;
   let progress;
   let presented;
-  component.paintUntil = (value) => { progress = value; };
+  component.paintUntil = (value) => {
+    progress = value;
+    component.needsPaint = false;
+    return true;
+  };
   component.present = (time) => { presented = time; };
 
   component.onMotionChange({ matches: true });

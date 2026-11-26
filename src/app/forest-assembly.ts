@@ -52,7 +52,11 @@ function cascadeAt(layout: WaterLayout, x: number, y: number) {
 }
 
 function pigment(color: string): Swarm {
-  const [red, green, blue] = color.slice(4, -1).split(' ').map(Number);
+  const first = color.indexOf(' ', 4);
+  const second = color.indexOf(' ', first + 1);
+  const red = Number(color.slice(4, first));
+  const green = Number(color.slice(first + 1, second));
+  const blue = Number(color.slice(second + 1, -1));
   if (red - green > 17 && green - blue > 13) return 'detail';
   if (red + green + blue > 548) return 'atmosphere';
   if (green >= red + 4 && green > blue + 6) return 'foliage';
@@ -70,34 +74,48 @@ function treeWave(swarm: keyof typeof treeWindows, dot: BonsaiParticle, x: numbe
 }
 
 export function scheduleAssembly(data: BonsaiData, layout?: WaterLayout): AssemblyData {
+  const steps = classifyAssemblySteps(data, layout);
+  let step = steps.next();
+  while (!step.done) step = steps.next();
+  step.value.particles.sort((a, b) => a.reveal - b.reveal);
+  return step.value;
+}
+
+export function* classifyAssemblySteps(data: BonsaiData, layout?: WaterLayout): Generator<void, AssemblyData> {
   const colors = new Map<string, Swarm>();
-  const particles = data.particles.map((dot): AssemblyDot => {
+  const particles = new Array<AssemblyDot>(data.particles.length);
+  for (let index = 0; index < data.particles.length; index++) {
+    if (index && (index & 1023) === 0) yield;
+    const dot = data.particles[index];
     const x = dot.x / data.width;
     const y = dot.y / data.height;
     const grain = variation(Math.round(dot.x * 103 + dot.y * 199)) - .5;
+    let swarm: Swarm;
+    let reveal: number;
     if (layout) {
-      let tone = colors.get(dot.color);
-      if (!tone) {
-        tone = pigment(dot.color);
-        colors.set(dot.color, tone);
+      if (y >= layout.shoreline || cascadeAt(layout, x, y)) {
+        swarm = 'water';
+      } else {
+        swarm = colors.get(dot.color) ?? pigment(dot.color);
+        colors.set(dot.color, swarm);
       }
-      const swarm = y >= layout.shoreline || cascadeAt(layout, x, y) ? 'water' : tone;
       // Water lanes guide motion without cutting holes in the shared deposition wave.
       const drift = .027 * Math.sin((x * .8 + y * .38) * Math.PI * 2);
-      const reveal = clamp(.24 + .29 * (1 - y) + drift + .32 * dot.reveal + .12 * grain);
-      return { ...dot, reveal, swarm };
+      reveal = clamp(.24 + .29 * (1 - y) + drift + .32 * dot.reveal + .12 * grain);
+    } else {
+      swarm = 'structure';
+      if (dot.lowVegetation || dot.material === 3) {
+        swarm = dot.material === 3 && dot.reveal > .72 && pigment(dot.color) === 'detail'
+          ? 'detail' : 'foliage';
+      }
+      const [first, last] = treeWindows[swarm];
+      reveal = first + (last - first) * clamp(treeWave(swarm, dot, x) + .13 * grain);
     }
-
-    let swarm: keyof typeof treeWindows = 'structure';
-    if (dot.lowVegetation || dot.material === 3) {
-      swarm = dot.material === 3 && dot.reveal > .72 && pigment(dot.color) === 'detail'
-        ? 'detail' : 'foliage';
-    }
-    const [first, last] = treeWindows[swarm];
-    const reveal = first + (last - first) * clamp(treeWave(swarm, dot, x) + .13 * grain);
-    return { ...dot, reveal, swarm };
-  });
-  particles.sort((a, b) => a.reveal - b.reveal);
+    particles[index] = {
+      x: dot.x, y: dot.y, radius: dot.radius, material: dot.material,
+      color: dot.color, opacity: dot.opacity, reveal, lowVegetation: dot.lowVegetation, swarm,
+    };
+  }
   return { ...data, particles };
 }
 
