@@ -1,6 +1,7 @@
 import { Component, computed, signal, type OnDestroy } from '@angular/core';
 import { profile, translations, type Language } from './profile';
 import { BonsaiCanvas } from './bonsai-canvas';
+import { InterfaceSwarm } from './interface-swarm';
 
 type Panel = 'work' | 'experience' | 'lab' | 'contact';
 const languageKey = 'portfolio-language';
@@ -17,7 +18,7 @@ function loadLanguage(): Language {
   selector: 'app-root',
   styleUrls: ['./app.scss', './details-dialog.scss'],
   templateUrl: './app.html',
-  imports: [BonsaiCanvas],
+  imports: [BonsaiCanvas, InterfaceSwarm],
 })
 export class App implements OnDestroy {
   protected readonly profile = profile;

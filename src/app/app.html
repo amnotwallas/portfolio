@@ -1,15 +1,17 @@
-<div class="page-shell">
+<div class="page-shell" [class.motion-paused]="paused()">
   <app-bonsai-canvas class="forest" aria-hidden="true" [paused]="paused()" />
+  <app-interface-swarm class="interface-swarm" aria-hidden="true" [paused]="paused()" />
 
   <header class="site-header">
-    <a class="monogram" href="#home" [attr.aria-label]="copy().homeLink">WA<span aria-hidden="true">.</span></a>
+    <a class="monogram" data-assemble="0" href="#home" [attr.aria-label]="copy().homeLink">WA<span aria-hidden="true">.</span></a>
 
     <div class="header-controls">
-      <div class="language-switch" role="group" [attr.aria-label]="copy().languageLabel">
+      <div class="language-switch" data-assemble="0" role="group" [attr.aria-label]="copy().languageLabel">
         <button type="button" lang="en" [attr.aria-pressed]="language() === 'en'" (click)="setLanguage('en')">EN</button>
         <button type="button" lang="es" [attr.aria-pressed]="language() === 'es'" (click)="setLanguage('es')">ES</button>
       </div>
       <button
+        data-assemble="0"
         type="button"
         class="motion-toggle"
         [attr.aria-label]="paused() ? copy().play : copy().pause"
@@ -29,13 +31,13 @@
 
   <main id="home" class="content" tabindex="-1">
     <section class="hero" aria-labelledby="name">
-      <p class="eyebrow">{{ copy().role }} <span aria-hidden="true">◆</span></p>
-      <h1 id="name">{{ profile.name }}<span aria-hidden="true">.</span></h1>
-      <p class="intro">{{ copy().intro }}</p>
+      <p class="eyebrow" data-assemble="0">{{ copy().role }} <span aria-hidden="true">◆</span></p>
+      <h1 id="name" data-assemble="1">{{ profile.name }}<span aria-hidden="true">.</span></h1>
+      <p class="intro" data-assemble="2">{{ copy().intro }}</p>
 
-      <p class="summary">{{ copy().summary }}</p>
+      <p class="summary" data-assemble="3">{{ copy().summary }}</p>
 
-      <div class="experience">
+      <div class="experience" data-assemble="4">
         <div class="experience-primary">
           <span>{{ copy().experienceRole }} <span aria-hidden="true">·</span></span>
           <button class="company-link" type="button" data-panel="experience" aria-haspopup="dialog" (click)="openPanel(details, 'experience', $event)">{{ profile.company }}</button>
@@ -46,7 +48,7 @@
         <p>{{ copy().experienceSubtitle }} <span aria-hidden="true">·</span> {{ copy().experienceDate }}</p>
       </div>
 
-      <div class="hero-actions">
+      <div class="hero-actions" data-assemble="5">
         <a class="cv-link" [href]="profile.cvUrl" download (click)="downloadCv($event)">
           {{ copy().downloadCv }} <span aria-hidden="true">↓</span>
         </a>
@@ -68,7 +70,7 @@
         </a>
       </div>
 
-      <nav class="detail-nav" [attr.aria-label]="copy().detailsLabel">
+      <nav class="detail-nav" data-assemble="6" [attr.aria-label]="copy().detailsLabel">
         <button type="button" data-panel="work" aria-haspopup="dialog" (click)="openPanel(details, 'work', $event)">{{ copy().panelTitles.work }}</button>
         <span aria-hidden="true">·</span>
         <button type="button" data-panel="lab" aria-haspopup="dialog" (click)="openPanel(details, 'lab', $event)">{{ copy().panelTitles.lab }}</button>
