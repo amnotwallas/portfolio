@@ -5,7 +5,7 @@ export const profile = {
   company: 'IBICARE',
   companyUrl: 'https://ibicare.mx/',
   companyAppUrl: 'https://play.google.com/store/apps/details?id=mx.ibicare.IbicareApp&hl=es_HN',
-  email: 'walterardev@gmail.com',
+  email: 'hello@wallas.dev',
   linkedinUrl: 'https://www.linkedin.com/in/walterambriz',
   githubUrl: 'https://github.com/amnotwallas',
   cvUrl: 'cv/Walter-Ambriz-CV.pdf',

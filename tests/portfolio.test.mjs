@@ -39,7 +39,7 @@ test('the initial HTML exposes the profile and contact links without JavaScript'
   assert.match(html, /name="twitter:card"/);
   assert.match(html, /application\/ld\+json/);
   assert.match(html, /<app-root>[\s\S]*<h1>Walter Ambriz/);
-  assert.match(html, /href="mailto:walterardev@gmail\.com"/);
+  assert.match(html, /href="mailto:hello@wallas\.dev"/);
   assert.match(html, /href="https:\/\/www\.linkedin\.com\/in\/walterambriz"/);
 });
 
